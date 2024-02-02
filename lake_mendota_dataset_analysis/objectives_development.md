@@ -1,1 +1,24 @@
+Scientists have been recording the dates when Lake Mendota first closes with ice (at least half the surface is covered with ice) and opens (more than half the surface is liquid water) since the middle of the 1800s.
+In most winters, there is a single uninterrupted period of time from the first time the lake is closed in the winter to the first time it reopens in the spring.
+Some winters have multiple intervals of closure
+The data set we are using summarizes the raw data with a single row for each winter from 1855–56 through last winter, 2021–22.
+The variable year1 is the first year of the given winter.
+The variable duration is the total number of days that Lake Mendota was closed by ice in the given winter. (Note: the word “winter” used here specifies a single season spanning two consecutive calendar years and does not use the endpoints from the winter solstice to the spring equinox, for example.)
+We will first create graphs to examine the question, “How long does Lake Mendota freeze each winter?” with graphical exploration of the variable duration.
+Subsequently, we will examine the question, “How has the duration that Lake Mendota freezes each winter changed over time?” by exploring the relationship between duration and year1.
+
+link: https://bookdown.org/bret_larget/stat-240-case-studies/madison-lakes.html
+
+development-
+
+read data,exploratory data analysis using ggplot2,single variable plots,histogram,boxplots,density plots,side by side plots,bar graphs,facets,Scales,Coloring,Themes,Aesthetics,Geoms
+
+
+QUESTIONS ASKED
+
+How do the total number of days that Lake Mendota is closed with ice vary over time?
+
+In a typical year, how much does the actual duration for which Lake Mendota is frozen (the surface is at least 50% covered by ice) vary from its predicted value? (How far apart are the black points and the blue curve, typically, in a given year)?
+
+When in the winter does Lake Mendota typically close with ice the first time?
 
