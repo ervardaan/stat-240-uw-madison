@@ -12,4 +12,4 @@
         - facets
         - scales
         - adding color
-        - -themes
+        - themes
