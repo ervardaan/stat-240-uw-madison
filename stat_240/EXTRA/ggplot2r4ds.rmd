@@ -1,0 +1,320 @@
+---
+title: "ggplot2r4ds"
+author: "vardaan kapoor"
+date: "2023-08-01"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+#install.packages("tidyverse")
+library(tidyverse)
+#install.packages("palmerpenguins")
+library(palmerpenguins)
+library(ggthemes)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+glimpse(penguins)
+View(penguins)
+```
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+also,leaving one line in writing statements actually creates another line text in output
+
+PLOT TASK 1
+
+```{r question,echo=FALSE}
+ggplot(
+  data = penguins,
+  mapping = aes(x = flipper_length_mm, y = body_mass_g)
+) +
+  geom_point(aes(color = species, shape = species)) +
+  geom_smooth(method = "lm") +
+  labs(
+    title = "Body mass and flipper length",
+    subtitle = "Dimensions for Adelie, Chinstrap, and Gentoo Penguins",
+    x = "Flipper length (mm)", y = "Body mass (g)",
+    color = "Species", shape = "Species"
+  ) +
+  scale_color_colorblind()
+```
+
+EXERCISES
+
+question 1
+Rows: 344
+Columns: 8
+
+question 2
+bill_depth_mm
+a number denoting bill depth (millimeters)
+
+question 3
+
+```{r question3}
+ggplot(data=penguins,mapping=aes(x=bill_length_mm,y=bill_depth_mm))+geom_point()+geom_smooth()
+```
+
+interpretation
+
+there is no major correlation between the two variables-there appears to be a maxima and minima
+
+```{r question4}
+ggplot(data=penguins,mapping=aes(x=bill_depth_mm,y=species))+geom_boxplot()
+```
+
+question 5
+
+the statement gives error as we have not specified x and y axes-what will be drawn on these axes is not written and so we can use some  geom method on an empty canvas which is created by ggplot(data) statement
+
+step1:make a new canvas using ggplot()
+
+step2:make axes/squares on the 2d graph by using x and y coordinates and specifying columns of data set 
+
+step3:specify what we wanna do with these values of both the columns using some geom method
+
+
+question 6
+
+```{r question6}
+ggplot(data=penguins,mapping=aes(x=bill_length_mm,y=bill_depth_mm))+geom_point(na.rm=TRUE)
+
+```
+
+if false-the empty values are removed with a warning while if true the empty values are removed without a warning
+
+default=false
+
+link to website: https://stackoverflow.com/questions/58443566/what-does-na-rm-true-actually-means
+
+question7
+
+link to website: https://www.rdocumentation.org/packages/ggplot2/versions/3.4.2/topics/labs
+
+
+```{r question7}
+ggplot(data=penguins,mapping=aes(x=bill_length_mm,y=bill_depth_mm))+geom_point(na.rm=TRUE)+labs(caption="Data come from the palmerpenguins package")
+```
+
+question8
+
+using at local level as we want dots of different shapes but line should not be broken into different segments like dots
+
+so we use local just to separate dots into different categories rather than global where we separate both dots and lines into 
+separate categories
+
+```{r question8}
+ggplot(data=penguins,mapping=aes(x=flipper_length_mm,y=body_mass_g))+geom_point(aes(color=bill_depth_mm))+geom_smooth()
+```
+
+question 9
+
+answer:using x and y columns and color of dots of scatter plot or any other geom style is dependent on type of value of island column
+
+the color aesthetics is applicable to global settings of the canvas on which we are making the geom graphs(both smooth and point in this case) and also we don't get to see line of standard error with smooth curve(the grey line is removed by se=FALSE)
+
+so different colored points and different colored separate broken lines without grey areas
+
+```{r question9}
+ggplot(
+  data = penguins,
+  mapping = aes(x = flipper_length_mm, y = body_mass_g, color = island)
+) +
+  geom_point() +
+  geom_smooth(se = FALSE)
+```
+
+question 10
+
+answer:the two graphs will look same as in first graph we apply aesthetics settings on global scale while in second graph,we apply the settings separately to both or all of the geom methods we use
+
+RULE:it is better to use data into ggplot() method and these use simultaneous mapping and aesthetics in different geom objects rather than use data in every geom object and leave ggplot() empty
+
+```{r question10}
+ggplot(
+  data = penguins,
+  mapping = aes(x = flipper_length_mm, y = body_mass_g)
+) +
+  geom_point() +
+  geom_smooth()
+
+ggplot() +
+  geom_point(
+    data = penguins,
+    mapping = aes(x = flipper_length_mm, y = body_mass_g)
+  ) +
+  geom_smooth(
+    data = penguins,
+    mapping = aes(x = flipper_length_mm, y = body_mass_g)
+  )
+```
+
+question 11 and 12
+
+answer:we get reverse bar plot where count is on x axis 
+
+color is for boundaries of bars while fill fills inside the bars' boundaries
+
+```{r question11}
+ggplot(data=penguins,mapping=aes(y=species))+geom_bar()
+ggplot(penguins, aes(x = species)) +
+  geom_bar(color = "red")
+
+ggplot(penguins, aes(x = species)) +
+  geom_bar(fill = "red")
+
+```
+
+question 13
+
+bins is overwritten by binwidth and default bin value is 30(we get to choose how to evenly divide bars/values into equally sized bins-more the bins,lesser the width)
+
+number of bins is indirectly proportional to binwidth of each bin
+
+question 14
+
+```{r question14}
+ggplot(data=diamonds,mapping=aes(x=carat))+geom_histogram(bins=30)
+
+ggplot(data=diamonds,mapping=aes(x=carat))+geom_histogram(bins=100)
+ggplot(data=diamonds,mapping=aes(x=carat))+geom_histogram(bins=10)
+
+```
+
+question 15
+
+```{r question15}
+glimpse(mpg)
+View(mpg)
+```
+
+answer:every column  which lists "type" of some value-model,manufacturer,trans,drv,fl,class
+
+rest are quantitative(numerical) columns which can hold any amount of values
+
+question16
+
+using categorical only 
+
+The shape palette can deal with a maximum of 6 discrete values because more than 6 becomes difficult to discriminate; you have 15. Consider specifying shapes manually if you must have them.
+
+```{r question16}
+ggplot(mpg,aes(x=displ,y=hwy))+geom_point(aes(color=model))
+ggplot(mpg,aes(x=displ,y=hwy))+geom_point(aes(color=model,size=manufacturer))
+ggplot(mpg,aes(x=displ,y=hwy))+geom_point(aes(size=manufacturer))
+ggplot(mpg,aes(x=displ,y=hwy))+geom_point(aes(shape=drv))
+ggplot(mpg,aes(x=displ,y=hwy))+geom_point(aes(shape=manufacturer))
+```
+
+using numerical values-we don't get discrete legend rather for a lot of numerical values,we get a color bar like a spectrum or broad categories are defined and used by R by itself
+
+```{r question16continued}
+ggplot(mpg,aes(x=displ,y=hwy))+geom_point(aes(color=cyl))
+#get a spectrum
+ggplot(mpg,aes(x=displ,y=hwy))+geom_point(aes(color=cyl,size=cty))
+ggplot(mpg,aes(x=displ,y=hwy))+geom_point(aes(size=cyl))
+#get discrete legend values based on `cyl`
+#ggplot(mpg,aes(x=displ,y=hwy))+geom_point(aes(shape=cty))
+#ggplot(mpg,aes(x=displ,y=hwy))+geom_point(aes(shape=cyl))
+#problem we get
+#A continuous variable cannot be mapped to the shape aesthetic
+
+```
+
+question 17
+
+answer:we get linewidth of density plot or scatterplot or bar graph changing according to variable's(preferably categorical) values
+
+note:linewidth doesn't work on bar graph or scatterplot-it only works on graphs with proper lining/outline separating every category's graph like density graph with many categories where color or fill is given a categorical variable and so we can do same with linewidth aesthetics
+
+```{r question17}
+ggplot(mpg,aes(x=displ,y=hwy))+geom_point(aes(linewidth=trans))
+```
+
+question 18
+
+```{r question18}
+#only for categorical variables
+ggplot(mpg,aes(x=displ,y=hwy))+geom_point(aes(color=trans,fill=trans,shape=trans))
+#can't do for numerical variables
+#ggplot(mpg,aes(x=displ,y=hwy))+geom_point(aes(color=year,fill=year,shape=year))
+#error:A continuous variable cannot be mapped to the shape aesthetic
+```
+
+question 19
+
+```{r q19}
+ggplot(penguins,aes(x=bill_length_mm,y=bill_depth_mm))+geom_point(aes(color=species))
+ggplot(penguins,aes(x=bill_length_mm,y=bill_depth_mm))+geom_point()+facet_wrap(~species)
+
+```
+
+question20
+
+answer:we change color on legend and make it "species" and so we get 2 legends(one with color replaced with species as word and one with species actually as we had two aesthetics called color and species in aes() method)
+
+solution:we made another legend of color and called it species and thus if we remove that labs() statement,we can get only one legend as only one categorical variable is mapped to color and shape aesthetics
+
+```{r q20}
+ggplot(
+  data = penguins,
+  mapping = aes(
+    x = bill_length_mm, y = bill_depth_mm, 
+    color = species, shape = species
+  )
+) +
+  geom_point() +labs(color = "Species")
+```
+
+question21
+
+stacked bar plots are on top of each other and using position=fill,we make them frequency plots
+
+result:graph 1:x has island categories and each bar is divided by colors of each species and each bar has same height due to frequency plot and this shows percentage of each category of species on each island(how much proportion of an island does a species occupy) like species a contains 30% of an island B
+
+graph 2:each species on x axis and result is frequency plot of island types on species types(which proportion of a species lives on a particular island--how much proportion of a particular species does an island contain) like 60 percent of a species lives on island B
+
+```{r q21}
+ggplot(penguins, aes(x = island, fill = species)) +
+  geom_bar(position = "fill")
+#biscoe contains gentoo and adelie while torgerson contains only adelie
+ggplot(penguins, aes(x = species, fill = island)) +
+  geom_bar(position = "fill")
+#adelie is on all 3 islands while rest species are on one stranded island only separately
+```
+
+question 22
+
+answer:always the last plotted graph gets saved as an image
+
+if we run statements 2 times with same output file name and extension,then they will get overwritten and no new files are created
+
+```{r 22}
+ggplot(mpg, aes(x = class)) +
+  geom_bar()
+ggplot(mpg, aes(x = cty, y = hwy)) +
+  geom_point()
+ggsave("mpg-plot.jpeg")
+ggsave("mpg-plot.pdf")
+ggsave("mpg-plot.png")
+```
+
+

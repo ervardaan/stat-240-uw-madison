@@ -1,0 +1,9 @@
+---
+author: "VARDAAN KAPOOR"
+output: html_document
+---
+```{r setup,include=FALSE}
+knitr::opts_chunk$set(echo=TRUE,message=TRUE,warning=TRUE,error=TRUE,fig.height=3)
+library(tidyverse)
+library(kableExtra)
+library(broman)

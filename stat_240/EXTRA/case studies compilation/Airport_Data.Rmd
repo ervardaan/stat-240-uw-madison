@@ -1,0 +1,123 @@
+---
+author: VARDAAN KAPOOR
+output: html_document
+---
+# The Airport Case Study
+
+-associated with uw madison stat 240 class
+
+-author:vardaan kapoor
+
+-data sets provided by uw madison teaching staff
+
+-question prompts answered
+
+## TOPICS LEARNED
+
+-tidyverse,lubridate,XML,readxl,rvest,scales
+
+-csv file handling and opening
+
+-read_csv,read_csv2,read_table.read_delim,read_tsv,read_excel,readHTMLTable
+
+-class(),mdy/myd/dmy/dym/ymd/ydm
+
+- date(),wday,mday=work on date valued object
+
+-slice()
+
+## Information about the data
+-The analysis involves reading in international arrival data from several international airports in the US.
+
+-The data is collected by the US Customs and Border Control.
+
+-Downloaded data is as an HTML file for each airport with a single table that is complicated by using three rows for a header and some fields which span multiple columns.
+
+-The CBP measures the time it takes for passengers to clear the passport control area and shares this information with the public for assistance in planning. The times recorded to not include the time to disembark the plane, walk to the passport control area, or to retrieve luggage, clear security, and navigate the airport to the gate of a connecting flight.
+
+### reading in the data form html file
+```{r setup,include=FALSE}
+knitr::opts_chunk$set(echo=TRUE,message=FALSE,warning=FALSE,error=TRUE,fig.height=4)
+library(tidyverse)
+library(lubridate)
+library(scales)
+library(XML)
+
+read_airport=function(f){
+  airport_column_names = c("airport",
+                           "terminal",
+                           "date",
+                           "hour",
+                           "us_avg_wait",
+                           "us_max_wait",
+                           "non_us_avg_wait",
+                           "non_us_max_wait",
+                           "all_avg_wait",
+                           "all_max_wait",
+                           "all_n_0_15",
+                           "all_n_16_30",
+                           "all_n_31_45",
+                           "all_n_46_60",
+                           "all_n_61_90",
+                           "all_n_91_120",
+                           "all_n_120_plus",
+                           "all_excluded",
+                           "all_total",
+                           "all_flights",
+                           "all_booths")
+#hte data frame contains values which we get by readHTMLTable() method and it gives us null value as the first value-we remove this value and slice the first 3 rows whcih are of no need
+  #airport=readHTMLTable(f)$`NULL` %>%  slice(-(1:3))
+   airport = readHTMLTable(f)$`NULL` %>% slice(-(1:3))
+  names(airport)=airport_column_names
+  #now we change the base r data frame iinto the tidverse data frame tibble
+  airport=airport %>% as_tibble() %>% mutate(across(ends_with("wait") | starts_with("all"), as.numeric)) %>% mutate(across(where(is.factor),as.character)) %>% mutate(date=mdy(date))
+  #airport
+  return (airport)
+}
+```
+
+```{r methodcall}
+msp=read_airport("./../../COURSE/data/MSP-2018.html")
+str(msp)
+```
+```{r writetofile}
+write_csv(msp,"./../../COURSE/data/MSP-2018.csv")
+```
+
+```{r read6airports}
+den = read_csv("../../COURSE/data/DEN-2018.csv")
+jfk = read_csv("../../COURSE/data/DEN-2018.csv")
+lax = read_csv("../../COURSE/data/DEN-2018.csv")
+msp = read_csv("../../COURSE/data/DEN-2018.csv")
+ord = read_csv("../../COURSE/data/DEN-2018.csv")
+sfo = read_csv("../../COURSE/data/DEN-2018.csv")
+awt=bind_rows(den,jfk,lax,msp,ord,sfo)
+rm(den,jfk,lax,msp,ord,sfo)
+
+#using purr package to read in the data again
+airport_codes = c("DEN", "JFK", "LAX", "MSP", "ORD", "SFO")
+awt=map_dfr(airport_codes,~{
+  f=str_c("./../../COURSE/data/",.x,"-2018.csv")
+  return (read_csv(f))
+})
+# ~{} us used ot make an anonymous function
+
+```
+
+```{r exploration}
+#checking f there is any missing value
+awt
+countmissing=function(x)
+{
+ return (sum(is.na(x))) 
+}
+awt %>% summarize(across(everything(),countmissing)) %>%  print(width=Inf)
+count_na = function(x)
+{
+  return ( sum(is.na(x) ) )
+}
+
+awt %>%
+  summarize(across(everything(), count_na)) %>% 
+  print(width = Inf)
+```

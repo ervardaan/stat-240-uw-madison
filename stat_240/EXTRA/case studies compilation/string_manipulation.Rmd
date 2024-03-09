@@ -1,0 +1,74 @@
+---
+author:vardaan kapoor
+output:html-document
+---
+
+```{r setup,include=FALSE}
+knitr::opts_chunk$set(echo=TRUE,message=FALSE,warning=FALSE,error=TRUE,fig.height=4)
+library(tidyverse)
+library(kableExtra)
+```
+
+```{r wordlesolutions}
+#example -we gave the guess of word "irate" and got the result G_ _ YY which means that i is at 
+#first place and there is no a or r in the word and there is one t and one e but not at the 4th and 5th places
+wrdl_data=read_csv("./../../COURSE/data/wordle_data.csv")
+wrdl_solutions=wrdl_data %>% filter(solution=TRUE) %>%  select(word)
+#removing the words with a or r characters
+w=wrdl_solutions %>% filter(!(str_detect(word,"[ra]"))) %>% 
+  #retain words with at least one instance of i,t,e
+filter(str_count(word,'i')>0) %>%  filter(str_count(word,'t')>0 & str_count(word,'e')>0) %>% 
+  #filter based on the pattern given-
+  filter(str_detect(word,"i..[^t][^e]"))
+  #^t denotes that the 4th position can't have t character
+w
+
+#setting the seed
+set.seed(20230229)
+example=slice_sample(wrdl_solutions,n=10) %>% arrange(word)
+example
+
+#detect words with character a in  them
+example %>%  filter(str_detect(word,"a"))
+#words ending with a vowel
+example %>% filter(str_detect(word,"[aeiou]$"))
+example %>%  mutate(n=str_count(word,"[aeiou]"))#counting the no of vowels
+#mke many substrings intot the word
+example %>%  mutate(first=str_sub(word,1,1),first_three=str_sub(word,1,3),last=str_sub(word,-1,-1),last_two=str_sub(-2,-1),not_first=str_sub(word,2,-1),first_vowel=str_extract(word,"[aeiou]"))
+
+#extract many patterns-use of "." 
+example %>%  mutate(first=str_extract(word,"^."),
+                    first_three=str_extract(word,"^..."),
+                    also_first_three=str_extract(word,"^.{3}"),
+                    last=str_extract(word,".$"),
+                    last_two=str_extract(word,"..$"))
+
+#counting the lengtho of each word
+example %>% mutate(n=str_length(word))
+example %>%  mutate(add_to_right=str_pad(word,7,side="right"),add_to_left=str_pad(word,7,side="left"),add_to_both=str_pad(word,7,side="both"))
+
+#modifying the substring result of the method
+x=example$word
+x
+#example %>% mutate(str_sub(example$word,2,4)="X")
+#replace the first vowel with an x and make all caps
+example %>%  mutate(x=str_replace(word,"[aeiou]","X"),all_caps=str_to_upper(word))
+#joining and splitting
+example %>%  mutate(new_word=str_c(str_sub(1,1),word,str_sub(-1,-1)))
+example %>% split(word) %>% str_split("[aeiou]")
+```
+
+```{r stringsuse.include=TRUE}
+s="i am good"
+s
+
+s2="you are 'bad'"
+s2
+s3='you are "good"'
+s3
+s4='you are \"evil\"'
+s4
+s5="\'hi how \'u"
+s5
+
+```

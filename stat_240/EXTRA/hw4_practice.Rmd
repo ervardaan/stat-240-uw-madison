@@ -1,0 +1,76 @@
+---
+author:vardaan kapoor
+output:html-document
+---
+
+setup chunk
+```{r setup,include=FALSE}
+knitr::opts_chunk$set(echo=TRUE,message=FALSE,warning=FALSE,error=TRUE,figure.height=3)
+library(tidyverse)
+library(dplyr)
+library(stringr)
+library(lubridate)
+source("./../COURSE/scripts/viridis.R")
+```
+
+```{r reading_data}
+#reading many files with the help of dfr method
+ord=map_dfr(2017:2021,~{
+  return (read_csv(str_c("./../COURSE/data/ORD-",.x,".csv")))
+})
+ord
+```
+
+```{r question1}
+ord=ord %>% mutate(year=year(date),month=month(date,label=TRUE,abbr=TRUE),day=day(date),wday=wday(date,label=TRUE,abbr=TRUE)) %>% relocate(c(year,month,day,wday),.after=date) %>%  rename("passengers"="all_total","flights"="all_flights","booths"="all_booths") %>%  arrange(date,hour)
+ord  %>% print(n=5,Width=Inf)
+dim(ord)
+```
+
+```{r question2,include=TRUE}
+all_values=seq(as.Date("2017-01-01"),as.Date("2021-12-31"),by="days")
+data=data.frame(all_values) %>%  rename("date"="all_values")
+data
+#we have the dataset and so we can do anti join of the original dataset with this one
+ord_date=ord %>% select(date)
+data<-data %>% anti_join(ord_date,by="date")
+data
+
+#ideal solution-
+all_dates=tibble(date=seq(ymd("2017-01-01"),ymd("2021-12-31"),1))
+all_dates %>% anti_join(ord,by="date")
+all_dates
+
+#another solution-
+missing_dates=all_dates %>%  filter(!all_dates$date %in% ord$date)
+missing_dates
+```
+
+```{r question3,include=TRUE}
+ord
+#giving some values of some rows of a column based on some category-defined by us and not on the dataset-so can't use group_by and have to use case_when method to add the labels to another column
+ord=ord %>% mutate(time_of_day=case_when((hour>="0000-0100" & hour<="0300-0400")~"overnight",
+                                     (hour>="0400-0500" & hour<="0700-0800")~"early morning",
+                                     (hour>="0800-0900" & hour<="1100-1200")~"afternoon",
+                                     (hour>="1200-1300" & hour<="1500-1600")~"early afternoon",
+                                  (hour>="1600-1700" & hour<="1900-2000")~"early evening",
+                                     (hour>="2000-2100" & hour<="2300-0000")~"late evening"
+                                    ))
+ord<-ord %>%  filter(!is.na(time_of_day))
+vector1=unique(ord$time_of_day ) 
+vector1
+
+```
+
+```{r question5,include=TRUE}
+ord
+int51=ord %>% group_by(year,month,final_date=date(ymd(date))) %>% summarize(number_of_days=n(),sum_asked=sum(passengers),average=sum_asked/number_of_days) %>%  ungroup() %>%  group_by(year,month) %>%  summarize(final_count=n(),sum_final=sum(sum_asked),average=sum_final/final_count)
+int51
+ggplot(int51,aes(x=month,y=average)) +geom_col()+facet_wrap(vars(year)) +scale_y_continuous(label=scales::comma)
+``` 
+
+```{r question8,include=TRUE}
+int71=ord %>% group_by(date) %>% summarize(sum=sum(passengers)) %>%  arrange(desc(sum)) %>% print(n=20,Width=Inf)
+int71
+```
+  

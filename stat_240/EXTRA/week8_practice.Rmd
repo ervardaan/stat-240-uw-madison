@@ -1,0 +1,66 @@
+---
+title:probability and simulation
+author:vardaan kapoor
+output:html-document
+---
+
+```{r setup,include=FALSE}
+library(tidyverse)
+library(dplyr)
+library(lubridate)
+library(kableExtra)
+library(egg)
+library(broman)
+source("./../COURSE/scripts/viridis.R")
+source("./../COURSE/scripts/ggprob.R")
+```
+
+### CONCEPT OF BINOMIAL DISTRIBUTIONS
+- discrete distributions which consider the number ofsuccesses in a fixed number of trials n
+### BINS ACRONYM
+- properties of binomial random variable
+- $B$ stands for binary outcomes of trial n-either success or failure in the trial
+- $I$ stands for independence of trials' results-result of one trial doesn't affect the result of another
+- $N$ stands for fixed sample size(doesn't depend on the outcomes)
+- $S$ stands for same probability where each trial has the same probability of failure or success
+
+### BINOMIAL PARAMETERS
+- $n$ depends on number of trials
+- $p$ is the success probability
+- \sim is used to write a tilde in latex
+- NOTATION: $X \sim Binomial(n,p)$
+
+### BINOMIAL MOMENTS
+- mean=$\mu=np$
+- variance=$\sigma^2=np(1-p)$
+- standard deviation=$\sigma=\sqrt{np(1-p)}$
+- use the function `rbinom` to calculate random binomial variables($b=NUMBER\quad OF\quad VARIABLES\quad WE\quad WANT$ while n and p remain the same)
+
+```{r example1}
+binomial=tibble(x=rbinom(1000000,100,0.5))
+binomial %>% summarize(mean=mean(x),variance=var(x),sd=sd(x)) %>% as.data.frame()
+ggplot(binomial,aes(x=x))+geom_histogram(aes(y=after_stat(density)),center=50,binwidth=1,color="black",fill="firebrick")+theme_minimal()
+```
+
+```{r segmentusage}
+binomial %>% count(x) %>% ungroup() %>% mutate(p=n/sum(n)) %>% ggplot(aes(x=x,y=p,xend=x,yend=0))+geom_segment(color="blue")+geom_hline(yintercept=0)+theme_minimal()
+
+```
+
+### explore graphs and arrange them using standard libraries
+- use egg library to get the ggarrange() method
+- get a grid using combinations of many values-use expand_grid() method
+- iterate over the rows of the data frame-use pmap() method
+- .x is used for 1st argument,.y is used for 2nd argument
+
+```{r explore}
+n_options=2^seq(0,10,by=1)
+p_options=c(0.1,0.5,0.9)
+binomial_plots=expand.grid(n_options,p_options) %>% pmap(~{gbinom(
+  .x,.y,color=if_else(.y==0.1,"red",if_else(.y==0.5,"green","blue")),scale=TRUE)+theme_minimal()
+})
+#steps:expand the dataframe with expand_grid->use pmap to get to each column each of which contains a value of n and p
+ggarrange(plots=binomial_plots,ncol=length(p_options),nrow=length(n_options))
+```
+
+

@@ -1,0 +1,147 @@
+---
+  title: "Madison Weather"
+output: html_document
+---
+  
+  This R Markdown document includes contributions from Professor Jessi Kehe.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE,  message=FALSE, warning=FALSE,
+                      error = TRUE,
+                      fig.height = 4)
+library(tidyverse)
+library(lubridate)
+library(viridisLite)
+library(dplyr)
+library(stringr)
+```
+
+```{r}
+mendota_raw = read_csv("C:/Users/varda/OneDrive/Documents/stat_240/COURSE/data/lake-mendota-raw-2022.csv")
+head(mendota_raw)
+mendota_raw %>% count(winter)
+mendota_raw %>% group_by(winter) %>% summarize(n=n()) %>% arrange(desc(n))
+mendota_interval = mendota_raw %>%
+## drop the days column and rows with missing data
+## the days variable had missing data in the first year
+##   of winters with multiple freeze intervals,
+##   so we needed to remove the column before calling drop_na()    
+  select(-days) %>% 
+  drop_na() %>% 
+## get the year1 and year2 numeric variables
+  separate(winter,into = c("year1","year2"), remove = TRUE)
+mendota_interval %>% mutate(year1=as.numeric(year1)) %>% mutate(year2=year1+1)
+head(mendota_interval)
+mendota_interval = mendota_interval %>%
+## add the correct year to the month and day for the closed and open columns
+  ## then convert the strings to dates with dmy()
+  mutate(closed = case_when(
+    str_detect(closed,"Jul|Aug|Sep|Oct|Nov|Dec") ~ str_c(closed,' ',year1),
+    str_detect(closed,"Jan|Feb|Mar|Apr|May|Jun") ~ str_c(closed,' ',year2),
+    TRUE ~ NA_character_
+  ))
+mendota_interval
+mendota_interval %>% mutate(open=case_when(str_detect(open,"Jul|Aug|Sep|Oct|Nov|Dec") ~ str_c(open,' ',year1),str_detect(open,"Jan|Feb|Mar|Apr|May|Jun") ~ str_c(open,' ',year2),str_detect(open,"Jan|Feb|Mar|Apr|May|Jun") ~ str_c(open,year1),TRUE ~ NA_character_))
+mendota_interval %>% mutate(closed=as.numeric(closed)) %>% mutate(open=as.numeric(open)) %>% mutate(no_of_days=as.numeric(open-closed))
+mendota_interval
+```
+```{r}
+read_data1=read_csv("C:/Users/varda/OneDrive/Documents/stat_240/COURSE/data/madison-weather-1869-2022.csv",col_types=cols(STATION=col_character(),NAME=col_character(),LATITUDE=col_double(),DATE=col_date(format=""),TMIN=col_number(), PRCP = col_double(),
+                         SNOW = col_double(),
+                         SNWD = col_double(),
+                         TAVG = col_double(),
+                         TMAX = col_double(),LONGITUDE = col_double(),
+                         ELEVATION = col_double()))
+dim(read_data1)
+head(read_data1)
+
+
+```
+
+
+
+```{r} 
+mw=read_data1 %>% rename(station=STATION,name=NAME,latitude = LATITUDE,
+         longitude = LONGITUDE,elevation=ELEVATION,date = DATE,
+         prcp = PRCP,
+         snow = SNOW,
+         snow_depth = SNWD,
+         tavg = TAVG,
+         tmax = TMAX,
+         tmin = TMIN)
+mw
+```
+
+```{r}
+mw = mw %>% mutate(recode(name,`UW ARBORETUM MADISON, WI US` = "Arboretum",`CHARMANY FARM, WI US` = "Charmany",
+                       `MADISON DANE CO REGIONAL AIRPORT, WI US` = "Airport",
+                       `MADISON WEATHER BUREAU CITY, WI US` = "Bureau"))
+mw
+stations=mw %>% select(station,name,latitude, longitude, elevation, date) %>%  group_by(station, name, latitude, longitude, elevation) %>% summarize(first_date = min(date),
+            last_date = max(date),
+            n = n(),
+            possible = as.numeric(last_date - first_date) + 1,
+            missing = possible - n)
+stations
+mw
+mw=mw %>% select(name, date, prcp, snow, snow_depth, tmin, tmax, tavg) 
+mw
+mw=mw %>% filter(name=="Airport" | name=="Bureau") %>% arrange(date,name)
+mw
+```
+```{r}
+#select the columns and their individual values(only independent variables)
+
+
+officialdata=mw %>% filter(date<ymd("1939-10-01"))
+officialdata
+official_stations=officialdata %>% select(name,date) %>% gropup_by(name) %>% sumamrize(first-date=min(date),last_date=max(date),n=n(),possible=as.numeric(last_date-first_date)+1,missing=possible-n)
+official_stations
+#we can check the date in the format which we specify int the ymd or ydm format
+#how we got the count of the missing values-
+#we calculated the maximum no of missing values we can have in the dataset-which is the no of values in total and is given by substracting the maximum of the last data and the minimum of the first date
+
+
+```
+
+```{r}
+#get the missing data and add them-thn count the missing data in each column
+#add the missing data=create a data frame which has the dates from start 1869 to 1939-then  join with the official data
+#7 values to  be added to the actual dataset
+#full dataset
+temp=tibble(date=seq(ymd("1869-01-01"),ymd("1939-09-30"),1),name="Bureau")
+nrow(officialdata)
+#Now join with the actual dataset to add the missing data
+officialdata=officialdata %>% full_join(temp,by=c("name","date"))
+#did a full join so we can get all the values of both the datasets
+#how to remove the temperory dataset-use rm
+rm(temp)
+count_na=function(x)
+{
+  return (sum(is.na()))
+}
+#summary of the data
+#call the function for each column
+official_summary=officialdata %>% summrize(prcp_na=count_na(prcp),snow_na=count_na(snow),depth_na=count_na(depth),tmax_na=count(tmax))
+#using the same function over many columns
+offficial_summary=official %>% summarize(across(prcp:tavg,count_na))
+official_summary
+#fist argmwent is the names to the columns wover whcih we want to run the function
+```
+
+```{r}
+official %>% select(name,date,snow) %>% drop_na() %>% summarize(first_snow=min(date))
+official %>% select(name,date,snow_depth) %>% summarize(first_snow_depth=min(date))
+#couitn the no of missing values int he data based onthe month
+ss=offical %>% mutate(month=month(date,label=TRUE)) %>% group_byu(month) %>% summarize(n=n(),missing=count_na(snow),p=missing/n)
+#p is the proportion of the values -sum over the count
+ggplot(data=ss,mapping=aes(x=month,y=p))+geom_col(fill="blue")+scale_x_continuous(labels=scales::percent)+xlab("Month")+ylab("percent of the missing data")+ggtitle("hello world",subtitle("hwllo hello"))
+#writing into ta csv file byopening it and thenpropviding it the dataframe
+write_csv(officialdata,"../../data/madison-weather-official-1869-2022.csv")
+#we open the file after wegive the name fo the dataset to be writtenb into it
+
+
+```
+
+
+

@@ -1,0 +1,46 @@
+---
+title: "layers_r4ds"
+author: "vardaan kapoor"
+date: "2023-08-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+question 1
+
+```{r q1}
+library(tidyverse)
+ggplot(mpg,aes(x=displ,y=hwy))+geom_point(shape=24,fill="pink")
+
+```
+
+question 2
+
+it did not because color aesthestic is inside aes() method and for using custom coloring and aesthetics,we have to keep it outside of aes()
+
+question 3
+
+#For shapes that have a border (like 21), you can colour the inside and
+# outside separately. Use the stroke aesthetic to modify the width of the
+# border
+
+```{R q3}
+ggplot(mpg,aes(x=displ,y=hwy))+geom_point(stroke=4,shape=24)
+```
+
+question 4
+
+note when we have an aesthstic dependent on some column name then we have to describe it in the dataset we are plotting and we get either points satisfying the condition or points not satisfying it but this aesthestic should be written in aes() and not in geom_method () without aesthestic
+
+```{r q4}
+ggplot(mpg,aes(x=displ,y=hwy,color=cyl<5))+geom_point()
+```

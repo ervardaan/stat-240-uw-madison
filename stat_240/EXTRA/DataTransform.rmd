@@ -1,0 +1,288 @@
+---
+title: "DataTransform"
+author: "vardaan kapoor"
+date: "2023-08-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r loading}
+library(nycflights13)
+library(tidyverse)
+```
+
+question1
+
+```{r q1}
+flightsmodified=flights |>  filter(arr_delay>=2) |> filter((dest=="IAH" | dest=="HOU")) |> filter(carrier=='UA' | carrier=='DL' | carrier=='AA') |> filter(month==7 | month==8 | month==9) |> filter(dep_delay<=0)
+flights |>
+  count(origin, dest, sort = TRUE)
+flights
+flights |> filter(month == 1)
+flightsmodified
+```
+
+question2
+
+note:we can't use desc(dep_delay),dep_time in one arrange as we can only have either all descending categories or all ascending categories but not a mixture of both in one arrange -we can however use pipe to use one arrange for all descending and one for all ascending
+
+```{r q2}
+flightsdelayed=flights |> arrange(desc(dep_delay)) |> arrange(dep_time)
+flightsdelayed
+```
+
+question3
+
+```{r q3}
+flightsfastest=flights |> arrange(desc(speed=distance/air_time))
+flightsfastest
+View(flights)
+```
+
+
+QUESTION 4-ASK AND CALCULATE WHICH DAYS WERE NOT INCLUDED IN DATABASE OF FLIGHTS
+
+question5
+
+```{r q5}
+flightsdist=flights |> arrange(desc(distance))
+flightsdist
+ascendingdist=flightsdist=flights |> arrange(distance)
+ascendingdist
+```
+
+question 6
+
+it doesn't matters for order of arrange and filter even if both are used and combined using pipe
+
+it is because if we first do filter then arrange will work on rest left values/tuples/rows
+
+if we use arrange first and then remove some rows from those arranged tuples,then also the final result will have the rows we want just ordered in way we want in both cases
+
+example
+
+```{r q6}
+ascendingdist1=flightsdist=flights |> arrange(distance) |> filter(dep_delay>100)
+ascendingdist2=flightsdist=flights |> filter(dep_delay>100)  |> arrange(distance)
+ascendingdist1
+ascendingdist2
+```
+
+question 7
+
+dep_time and dep_estimated and dep_delay are three types of quantities related to departure of flights
+
+dep_delay=dep_time-dep_estimated/scheduled
+
+question 8
+
+assuming that no relocation of columns is done
+
+options-include a category,select directly,use exclude,exclude by category(in between)
+
+we can't use contains or exact comparison/existence of a substring in column names o select as there are some columns with those substrings which we don't want to select
+
+we can however use is.character but that will select all columns and so is of no use
+
+we can also use starts_with and ends_with but for all columns separately we have to use a proper substring so that only that column is selected and using a general substring can get us more columns than we want
+
+question 9
+
+if variable name is used more than once then only once it will be printed and if it is used in assgnment and formation of some new column,then the number can vary depending on number of new columns we want
+
+example
+
+```{r q9}
+selecttwice=flights |> select(carrier,carrier)
+selecttwice
+```
+
+question10
+
+this any_of() function can be used to give a condition that a column name should be any value inside a vector we give-this can be used to select columns from a dataset
+
+example
+
+```{r q10}
+any_oftester=flights |> select(any_of(c("year", "month", "day", "dep_delay", "arr_delay")))
+any_oftester
+```
+
+question 11
+
+answer:we get all columns with name containing "TIME"as substring--we however get all results with "time" as well-just spelling should match rather than case of alphabets
+
+solution to get by case:use ignore.case=FALSE inside select after stating columns to select's contains() method
+
+note:this ignore.case synax is wrong and therefore gives no tuples as output
+
+```{r q11}
+fltime=flights |> select(contains("TIME",ignore.case=FALSE))
+
+fltime
+```
+
+question 12
+
+method 1 using select and method 2 using relocate and rename-in method 1 we can't use .before and .after with select and rename-can only be used with relocate--we can also use just relocate rather than rename and relocate together
+
+```{r q12}
+changename=flights |> select(everything(),air_time_min=air_time)
+changename
+changename2=flights |> rename(air_time_min=air_time) |> relocate(air_time_min,.before=1)
+change=flights |> relocate(air_time_min=air_time,.before=1)
+changename2
+change
+```
+
+
+
+question 13
+
+we selected only one column but after piping we want to arrange the rows by some other column's values which doesn't exist in this intermediate data frame we got after select statement
+
+example of grouping
+
+```{r gr}
+daily <- flights |>  
+  group_by(year, day,month)
+#daily_flights <- daily |> 
+  #summarize(n = n())
+daily_flights <- daily |> 
+  summarize(
+    n = n(), 
+    .groups = "drop_last"
+  )
+daily_flights2 <- daily |> 
+  summarize(
+    n = n(), 
+    .groups = "keep"
+  )
+daily_flights3 <- daily |> 
+  summarize(
+    n = n(), 
+    .groups = "drop"
+  )
+daily_flights
+daily_flights2
+daily_flights3
+```
+
+question 14
+
+get carrier grouping->get average delays->order by these delays in descending order->get first head entry
+
+TASK:FIND MEANING OF flights |> group_by(carrier, dest) |> summarize(n())
+
+```{r q14}
+finalresult=flights %>% drop_na() %>% group_by(carrier) %>% summarise(average_delay=(sum(dep_delay)+sum(arr_delay))/n()) %>%  arrange(desc(average_delay)) %>%  slice_head(n=1)
+finalresult
+finalresult2=flights %>% drop_na() %>% group_by(carrier,dest) %>% summarise(average_delay=(sum(dep_delay)+sum(arr_delay))/n()) %>%  arrange(desc(average_delay))
+finalresult2
+```
+
+question 15
+
+TO DO:correct dest4 to make it precise as to what we want
+
+```{r q15}
+fl_dest=flights %>% group_by(dest,carrier) %>%  slice_head(n=1)
+fl_dest2=flights %>%  group_by(dest,carrier) %>% arrange(desc(dep_delay)) %>%  summarise(n())
+fl_dest2
+fl_dest
+fl_dest3=flights %>% group_by(dest) %>%  arrange(desc(dep_delay))
+fl_dest3
+#dest4 is closest to what we want but not perfect
+fl_dest4=flights %>% drop_na() %>% group_by(dest,carrier) %>%  summarise(max(dep_delay)) 
+fl_dest4
+```
+
+question 16
+
+FOLLOW UP QUESTION:how to get average number of flights and deays by hor and not just sum of delays by hours in whole years
+
+```{r q16}
+flights %>%  group_by(year,month,day) %>% ggplot(aes(x=hour,y=dep_delay))+geom_point()
+flights %>%  group_by(year,month,day) %>% ggplot()+geom_bar(aes(x=hour))
+```
+
+question 17
+
+answer:we get all values of dataset rather than min_val when n is negative which is wrong
+
+also if we use n=1 in example1,we get at least 201 rows with all values of arr_time being 1 while if we use n=202 then we get 365 rows of arr_time being 1 and 2-when 202th value row was taken R got arr_time=2 and hence got all the values of rows wehre this arr_time value=2 was there
+
+```{r q17}
+flights %>%    slice_min(arr_time,n=202)
+```
+
+question 18
+
+count() counts the number of rows in a group and sort=TRUE sorts the values by their count value in descending order
+
+question 19
+
+part a:we get all rows divided by category values of y column-they are "a" and "b"-we don;t see any signs of grouping in data printed until summarise() is written and we get details of every group individually
+
+1	a	K		
+2	b	K		
+3	a	L		
+4	a	L		
+5	b	K
+
+check
+
+```{r q19}
+df <- tibble(
+  x = 1:5,
+  y = c("a", "b", "a", "a", "b"),
+  z = c("K", "K", "L", "L", "K")
+)
+df %>% group_by(y)
+```
+
+part b:arrange doesn't group by categories(so no grouping done) but rather just arranges rows in an order
+
+part c:group by values in y(unique values) and then in every category,find mean of all corresponding values of column x in that category and give this summary result-so there will be those many rows in summary as he number of distinct values in column y and number of columns in summary will be mean and y value(distinct as a category)
+
+part d:group by y first and then group by z inside each y category and then find mean for each of the inner grouping by z-so for each unique z inisde each unique y we get a mean as a summary-total number of rows>=#y values *Minimum # z values in each y
+
+```{r qd}
+df |>
+  group_by(y, z) |>
+  summarize(mean_x = mean(x))
+```
+
+part e:first do part d and then drop all the 2 groupings we did-so now if we make a pipe after this summarise method we get no further grouping
+
+```{r qe}
+df |>
+  group_by(y, z) |>
+  summarize(mean_x = mean(x),.groups="drop")
+
+```
+
+part f:by mutate we actually add the results of summarise method into the dataframe-on the other hand summarie just displays things and not actually append them as a separate column in the dataframe we are working on-bot the initial dataframe but the one which mutate function right before it is implemented via the pipe
+
+```{r qf}
+df |>
+  group_by(y, z) |>
+  summarize(mean_x = mean(x))
+
+df |>
+  group_by(y, z) |>
+  mutate(mean_x = mean(x))
+```
+
