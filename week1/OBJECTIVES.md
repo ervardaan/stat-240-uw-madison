@@ -2,6 +2,9 @@
 
 ### How to create, manipulate, and calculate with vectors in R
 
+-- YAML
+--- ain't markdown language-only declare knitting details inside it
+
 - Vectors
 - assignment
 - object names
