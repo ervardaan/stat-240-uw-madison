@@ -4,7 +4,7 @@
 
 - YAML
 
--- ain't markdown language-only declare knitting details inside it
++ ain't markdown language-only declare knitting details inside it
 
 - Vectors
 - assignment
