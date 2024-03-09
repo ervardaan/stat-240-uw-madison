@@ -1,0 +1,1441 @@
+---
+title: "Chimpanzees Analysis"
+author: "Bret Larget"
+output: html_document
+---
+This R Markdown document includes contributions by Professor Jessi Kehe.
+
+\renewcommand{\prob}{\mathsf{P}}
+\newcommand{\E}{\mathsf{E}}
+\newcommand{\Var}{\mathsf{Var}}
+
+### Setup details
+
+- This lecture use the following scripts, assumed to be in your course scripts directory.
+    - `COURSE/scripts/viridis.R`
+    - `COURSE/scripts/ggprob.R`
+    
+- You also need the chimpanzee data
+    - `COURSE/data/chimpanzee.csv`
+
+- You will need the package `tidyverse` for these lectures.  
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = TRUE,
+                      error = TRUE, fig.height = 4)
+library(tidyverse)
+library(scales)
+source("../../scripts/viridis.R")
+source("../../scripts/ggprob.R")
+```
+
+## Chimpanzee Data Introduction
+
+- Chimpanzees were studied in a pro-social choice experiment.
+    - Chimpanzees are given a sequence of choices about which color token to select.
+    - One color (labeled selfish) results in them getting food.
+    - Another (labeled pro-social) results in both them and a partner chimp receiving food.
+    - In a control setting, there is no partner
+        - different color choices result in the researcher mimicking the same actions as when partner is present (i.e., always giving the actor chimp food, making a motion with food toward the empty room for the partner chimp).
+- We will develop a statistical model for this experiment.
+- Each session of the experiment includes a series of 30 trials where one of two outcomes is possible.
+
+
+## Inference questions
+
+- How often does the actor chimpanzee make the pro-social choice? How much uncertainty is there in this estimate? How confident can we be that the long-run probability of making the pro-social choice in repeated trials falls within some interval?
+- Do chimps make the pro-social choice more than 50 percent of the time, or is the pro-social choice made at random?
+- Does the frequency with which the chimpanzee makes the pro-social choice depend on there being a partner chimpanzee in the neighboring room?
+
+## Summarizing the Chimpanzee Data
+
+```{r}
+chimpanzee = read_csv("../../data/chimpanzee.csv")
+
+head(chimpanzee)
+```
+
+- Summary of frequency of pro-social choices in chimpanzee experiments with and without partners
+
+```{r}
+sum1 = chimpanzee %>% 
+  mutate(session_type = case_when(
+    partner == "none" ~ "no partner",
+    TRUE ~ "partner"
+  )) %>% 
+  group_by(actor, session_type) %>% 
+  summarize(prosocial = sum(prosocial),
+            selfish = sum(selfish),
+            n = prosocial + selfish,
+            pct_prosocial = 100*prosocial/n)
+sum1
+
+sum1_wide = sum1 %>% 
+  select(actor, session_type, pct_prosocial) %>% 
+  pivot_wider(names_from = session_type,
+              values_from = pct_prosocial)
+
+sum1_wide
+```
+
+- We see that every chimpanzee made the pro-social choice more than half the time when a partner was present.
+- Chimpanzee G had a smaller number of trials than the others and had no trials without a partner
+- Each partner made the pro-social choice more often with a partner than without.
+
+- We next move to models of this data and questions of inference.
+
+## Graphical Summary
+
+```{r}
+ggplot(sum1, aes(x = actor, y = pct_prosocial,
+                 fill = session_type)) +
+  geom_col(color = "black",
+           position = position_dodge2(preserve = "single")) +
+  scale_y_continuous(labels = percent_format(scale = 1)) +
+  xlab("Chimpanzee") + 
+  ylab("Pro-social Choice Probability") +
+  ggtitle("Chimpanzee Pro-social Choice Comparison",
+          subtitle = "with and without partners") +
+  guides(fill = guide_legend(title = "Session")) +
+  theme_minimal()
+```
+
+- Note the use of:
+    - `position_dodge2(preserve = "single")` so that the widths of bars are all the same even if there is missing data
+    - `percent_format()` from **scales** to improve the y-axis tick labels
+    - `guides()` to change the default fill legend title
+    - `theme_minimal()` to modify the background and grid lines
+
+
+## Partial Data
+
+- An important big question is to use data from all of the chimpanzees with and without partners to assess the differences between the probabilities of pro-social and selfish choices across multiple individuals
+
+- To work toward this goal, we begin with a subset of the data for which the parameter definitions are more clear and assumptions are more straightforward.
+
+- Chimpanzee subject A was tested 90 times with a partner (three sets of 30 trials with each of three different partners)
+- This chimpanzee made the pro-social choice 60 times out of 90 trials.
+
+## A Statistical Model
+
+1. Name and define variables
+2. Make assumptions (these can be examined later)
+3. Write a probability model for the variables and required parameters
+
+- $X$ is the number of pro-social choices that subject A makes in 90 trials.
+- Assume:
+    - each trial could be pro-social or selfish
+    - 90 trials was predetermined
+    - trials are independent (this assumption is debatable)
+    - same probability of pro-social choice for each trial (this assumption is debatable)
+- Under these assumptions, $X$ has a binomial distribution.
+- Parameters are:
+    - $n$, the number of trials. Here $n=90$.
+    - $p$, an unknown long-run probability that **this chimpanzee makes the pro-social choice**. (We may be interested in inference on this parameter using the data.)
+        - If we later explore data from multiple chimpanzees or from sessions with and without a partner, we will need to redefine what $p$ means.
+    
+The model is:
+
+$$
+X \mid p \sim \text{Binomial}(90,p)
+$$
+
+The data are:
+
+- $n=90$
+- $x=60$
+
+## Populations and Samples
+
+- Before making a statistical inference, it is important to make a conceptual decision about a *population* of interest and to understand the available data as a *sample* from this population.
+- In the framework of this conceptual decision,
+it is then possible to interpret parameters in a statistical model which connects the data to these parameters.
+- The general idea here is that some true data generation process is governed by one or more unknown *parameters* in a statistical model and we use *statistics* calculated from sampled data to estimate and make inferences about the parameters in this model, thus learning about the population of interest.
+
+- In our current case study,
+we have a number of trials, each of which results in a chimpanzee either making a pro-social or selfish choice.
+- It is natural to want to model each trial as a single Bernoulli trial with some success probability $p$ of making the pro-social choice.
+- But what is the population of interest that should govern our interpretation of this value $p$?
+- The context of the data collection and associated assumptions are critical in making an appropriate decision.
+- When doing different types of inference using part or all of the data, our concept of what is the population and thus how to interpret the meaning of $p$ might change.
+
+- This first inference question is using data from the experiment collected from Chimpanzee A in trials with a partner present.
+- For this inference, we may think of the population as being *the hypothetical collection of trials if we indefinitely tested this chimpanzee in the experimental setting with a partner present*.
+- The parameter $p$ will then refer to a long-run probability *that Chimpanzee A* would make the pro-social choice in the experimental setting with a partner present.
+    - The data we use combines data from three different sessions, each with a different partner.
+    - Here, we make a (strong) assumption that the identity of the partner does not affect this probability $p$.
+- Other assumptions are detailed below.    
+    
+## Point Estimates
+
+- A *point estimate* is a statistic calculated from the data to estimate a parameter.
+- We often put a "hat" over the parameter symbol to indicate an estimate.
+- A natural estimate here is:
+    - $\hat{p} = \frac{x}{n} = \frac{60}{90} = `r round(60/90,3)`$
+
+## Explore with Simulation
+
+- If the true value of $p$ was $60/90$ or close to it, how much would the sample proportion $P = X/n$ tend to vary from its true value?
+- We will explore this with theory soon, but first carry out a simulation.
+
+- Choose $B=1,000,000$ to repeat one million times (perhaps excessive).
+- Set $p=60/90$.
+    - In our simulation, the observed $\hat{p}$ from the data becomes the true $p$.
+- Set $n=90$.
+- We will generate $B$ simulated random variables, $X^*_1,\ldots,X^*_B$ where each $X_i \sim \text{Binomial}(90, 60/90)$.
+
+```{r}
+set.seed(2022)
+## simulation parameters
+B = 1000000
+n = 90
+x = 60
+p = x/n
+
+## do the simulation
+sim = tibble(
+  x_star = rbinom(B, n, p),
+  p_hat = x_star / n)
+
+## summarize the simulation
+sim_summary = sim %>% 
+  summarize(mean = mean(p_hat),  ## this should be very close to p=60/90
+            sd = sd(p_hat))
+sim_summary
+
+## Graph of simulated p_hat values
+ggplot(sim, aes(x = p_hat, y=..density..)) +
+  geom_histogram(center = 60/90, binwidth = 1/90,
+                 color = "black", fill = "firebrick") +
+  xlab("sample proportion (p-hat)") +
+  theme_minimal() 
+  # geom_norm_density(mu=p, sigma=sqrt(p*(1-p)/n),color="blue", size=2)
+
+```
+
+- The simulated standard error is about 0.050 to two significant figures.
+- The shape of the simulated sampling distribution is approximately normal.
+- For every normal curve, about 95% of the area is within $1.96 \times \sigma$ of the mean.
+
+```{r}
+qnorm(0.975)
+qnorm(0.025)
+pnorm(1.96) - pnorm(-1.96)
+```
+
+- Thus, $\prob(|\hat{P} - p| < 1.96 \text{SE}) \approx 0.95$.
+    - SE here stands for *standard error*, or the standard deviation of the sampling distribution of $\hat{P}$.
+    - About 95% of all possible sample proportions are within 1.96 SEs of the true $p$.
+    - It follows that for a single sample, if the binomial model is valid, we are justified to be 95% *confident* that the unknown true value of $p$ is within 1.96 standard errors of the observed sample proportion $\hat{p}$.
+    
+- In our case study example, define $p$ to be the long-run probability that chimpanzee A makes the pro-social choice in the experimental setting with a partner present.
+    - We observe $\hat{p} = 60/90 = 0.667$.
+    - Simulation provides an estimated standard error of 0.050.
+    - We are 95% confident that the true (unknown and unknowable) value of $p$ is within 1.96 standard errors of 0.667: $0.667 \pm 1.96(0.050)$ or $0.667 \pm 0.098$
+    - We are 95% confident that $0.569 < p < 0.765$.
+    
+- In applications, we want to interpret this confidence interval in context:
+
+> We are 95% confident that Chimpanzee A would make the pro-social choice in the conditions of the experiment with a partner present between 56.9% and 76.5% of the time.
+
+- Note that the technical conditions on which this inference is based are solid: the binomial distribution is well approximated by the normal distribution when $n$ is large enough and $n=90$ is plenty large enough for a $p$ near 0.67.
+- However, we could be misled if conditions of the binomial model fail.
+    - Are trials independent? What if the chimpanzee makes the selfish choice and the partner gets agitated. Might the chimpanzee be apt to make the pro-social choice at the next trial?
+    - Are the probabilities all the same? Is there a trend to be more pro-social at the beginning or end of a session or from one day to the next?
+- The authors did examine data we do not have to see if there was evidence of a failure of the assumptions and did not find any, but this is the sort of thing that one might want to replicate to gain greater confidence in the conclusion.
+    
+## Calculations without simulation
+
+- The previous approach required simulation to determine the standard error.
+- Theory provides an alternative: a formula.
+- We will, actually consider a simple formula and a slight modification with better behavior.
+    
+## Standard Error 
+
+- How accurate is the point estimate $\hat{p} = 60/90$ of the true unknown $p$?
+- The (random) *estimator* is $\hat{P} = \frac{X}{n}$, where $X \sim \text{Binomial}(n,p)$  
+(I am going to use $\hat{P}$ to represent our random estimator, and $\hat{p}$ to represent the non-random observed statistic.)  
+    - The (non-random) *estimate* is our $\hat{p} = \frac{60}{90}$  
+    - The variance of $\frac{X}{n}$ is:
+    
+$$
+\Var(\hat{P}) = \Var\left( \frac{X}{n} \right) = \frac{\Var(X)}{n^2} = \frac{np(1-p)}{n^2} = \frac{p(1-p)}{n}
+$$
+
+- Consider the *sampling distribution* of the estimator when doing inference.   
+    - You can think of the sampling distribution as the distribution of all possible values of the statistic taken with a fixed sample size $n$.  
+
+$$
+\text{SE}(\hat{p}) = \sqrt{ \frac{p(1-p)}{n} }
+$$
+
+```{r standard-error}
+X = 60
+n = 90
+p_hat = X/n
+p_hat
+
+## Possible estimate for the SE
+round(sqrt(p_hat*(1-p_hat)/n), 3)
+```
+
+- The calculated SE of 0.05 is what we found (rounding to three digits) in our simulation.
+
+
+## Introduction to Confidence Intervals for p
+
+- A confidence interval incorporates uncertainty with the point estimate to form an *interval estimate* with an attached level of confidence.
+- A conventional choice is 95%, but other confidence levels are possible.
+- When the sampling distribution of a point estimate is approximately normal, we typically construct confidence intervals as
+
+$$
+\text{point estimate} \pm \text{margin of error}
+$$
+where the margin of error is a critical value from a standard normal distribution multiplied by a standard error.
+
+$$
+\text{margin of error} = z \times \text{SE}
+$$
+where $z$ is selected so that the area between $-z$ and $z$ under a standard normal density matches the desired confidence level.
+
+
+## Logic of Confidence Intervals
+
+- Recall that $\hat{P} = \frac{X}{n}$ where $X \sim \text{Binomial}(n,p)$.  
+    - We learned previously that under certain criteria, a binomial distribution approximately follows a normal distribution with mean $\mu = np$ and $\sigma = \sqrt{np(1-p)}$  
+    - This implies that our estimator $\hat{P} \sim N\left(p, \sqrt{\frac{p(1-p)}{n}}\right)$ (this is before we observe our sample so it is still random)  
+- If $p$ was known, then there is about a 95% chance that an observed $\hat{p}$ will be within 1.96 standard errors of $p$, assuming approximate normality. 
+    - This is because if $p$ is known, then $P(p-1.96 SE < \hat{P} < p + 1.96 SE) \approx 0.95$
+        - where $SE = \sqrt{\frac{p(1-p)}{n}}$, and $\hat{p}$ is a realization of $\hat{P}$.    
+    - Use a different value instead of $z=1.96$ for a different confidence level.
+- If we do not know $p$, but observe $\hat{p}$, there was a 95% chance before the random sample was taken that $\hat{p}$ would be within 1.96 SEs of this unknown $p$, so we can be *95% confident* that the observed $\hat{p}$ is one of the 95% of the possible ones that is within 1.96 SEs of $p$.
+- Therefore, we are 95% confident that $p$ is within 1.96 SEs of $\hat{p}$.
+- We construct a 95% confidence interval by forming an interval centered at a point estimate plus or minus 1.96 times the standard error.
+
+## Interpretation of confidence intervals
+
+
+> What do we hope to capture within a confidence interval?
+
+- The unknown parameter $p$.  In practice, we do not know if $p$ is or is not within the interval.
+
+
+> What happens to confidence intervals when the confidence level changes?
+
+- Intuitively, to be more confident the true $p$ is captured, it makes sense that would correspond with a wider interval (all else equal)
+
+- Recall the margin of error gives the half-width of the interval:
+
+$$
+\text{margin of error} = z \times \text{SE}
+$$
+
+- For a given SE, $z$ controls the the width of the interval.  A larger $z$ results in a wider interval.
+- Let's review the $z$'s for a few different confidence levels.  
+
+Notice as we decrease the confidence level, the magnitude of $z$ decreases as well.
+
+```{r}
+## 95% confidence
+## Cut off 2.5% in each tail
+## +/- z is the 0.025 and 0.975 quantiles.
+qnorm(0.975)
+
+## 90% confidence
+## Cut off 5% in each tail
+qnorm(0.95)
+
+## 80% confidence
+## Cut off 10% in each tail
+qnorm(0.90)
+
+## 99% confidence
+## Cut off 0.5% in each tail
+qnorm(0.995)
+```
+
+- In general, if the desired confidence level is `conf`, then the corresponding quantile is `1 - (1-conf)/2`.
+
+```{r}
+conf = c(0.8, 0.9, 0.95, 0.99)
+round(qnorm(1 - (1-conf)/2),3)
+```
+
+## More on Confidence Intervals for p
+
+
+## Complications
+
+- There are some complications with our confidence intervals for p:
+
+- The standard error is $\text{SE}(\hat{p}) = \sqrt{ \frac{p(1-p)}{n} }$ which also needs to be estimated as we do not know $p$.
+- The binomial distribution is discrete, and so the sampling distribution of $\hat{p}$ is also discrete and not exactly normal.
+
+- Both of these complications can lead to inaccuracies in the confidence interval approach.
+
+## Wald Method
+
+- The Wald method uses the observed relative frequency as the point estimate for $p$:
+
+$$
+\hat{p} \pm 1.96 \sqrt{ \frac{\hat{p}(1-\hat{p})}{n} }
+$$
+
+- For our observed data, we get
+
+```{r wald-ci}
+binom_se =  function(n, p){
+  return ( sqrt( p*(1-p)/n) )
+}
+
+binom_ci = function(est, se, conf=0.95){
+  z = qnorm(1 - (1 - conf)/2)
+  me = z * se
+  ci = est + c(-1,1)*me
+  return(ci)
+}
+
+x = 60
+n = 90
+p_hat = x/n
+
+se_wald = binom_se(n, p_hat)
+
+se_wald
+
+ci_wald = binom_ci(p_hat, se_wald)
+
+round(ci_wald, 3)
+```
+
+
+## Agresti-Coull Method
+
+- The Agresti-Coull method uses a different point estimate and standard error.
+- Rather using $\hat{p} = \frac{x}{n}$:
+    - Act as if there were four additional observations, two successes and two failures in the sample.
+    - $\tilde{p} = \frac{x+2}{n+4}$
+    - This is an example of a *shrinkage* estimate, which pulls the observed proportion a bit toward 0.5.
+    - Then use the modified point estimate and sample size to estimate the standard error and confidence interval.
+    - Note that the "add two observations of each type to the sample" method is a simplification of the most accurate value to add and that these values are tuned for a 95% confidence level
+    - A different confidence level would employ a different adjustment.
+
+    
+$$
+\tilde{p} \pm 1.96 \sqrt{ \frac{\tilde{p}(1-\tilde{p})}{n+4} }
+$$
+
+```{r agresti-coull-ci}
+x = 60
+n = 90
+
+p_tilde = (x+2)/(n+4)
+p_tilde
+
+se_agresti = binom_se(n+4, p_tilde)
+se_agresti
+
+ci_agresti = binom_ci(p_tilde, se_agresti)
+round(ci_agresti, 3)
+#round(ci_wald, 3)
+```
+
+- Theory suggests that for most values of $p$ and $n$, this approach will be more accurate.
+
+
+- The reason for the alternative approach is that when we use $\hat{p}$ to estimate the standard error, this estimate might be a little too small or a little too big, just by chance.
+- When the estimated standard error is a little too small, the confidence interval is a little too narrow and it can miss the true value too often.
+- When $\hat{p}$ is closer to 0 or to 1 than the true $p$, the SE is underestimated by a bit more than the overestimate when $\hat{p}$ is a bit closer to 0.5 than $p$ is.
+- Using $\tilde{p} = \frac{x+2}{n+4}$ moves the estimate a bit closer to 0.5 than $\hat{p} = x/n$ is.
+
+
+## Evaluating the accuracy of Confidence Intervals for p
+
+- Let's generate a realization from a binomial distribution with $n=90$.    
+- In practice we do not know what the value for $p$ is...this is why we want to do inference on it!
+- However, we are going to specify a value for $p$, and then pretend we don't know it.
+
+```{r}
+set.seed(123) # setting the random number seed
+
+## Generate data
+n = 90
+p = 0.25
+x = rbinom(1, n, p)
+x
+
+## Compute our point estimates
+p_hat = x/n
+p_hat
+p_tilde = (x+2)/(n+4)
+p_tilde
+```
+
+- Now let's get our confidence intervals.
+- It will be nice to have functions for repeated calculations.
+
+```{r}
+wald_ci = function(n, x, conf=0.95)
+{
+  p_hat = x/n
+  se = binom_se(n, p_hat)
+  ci = binom_ci(p_hat, se, conf)
+  return ( ci )
+}
+
+agresti_ci = function(n, x, conf=0.95)
+{
+  p_tilde = (x+2)/(n+4)
+  se = binom_se(n+4, p_tilde)
+  ci = binom_ci(p_tilde, se, conf)
+  return ( ci )
+}
+```
+
+
+```{r}
+wald0 = wald_ci(n, x)
+agresti0 = agresti_ci(n, x)
+
+rbind(wald0, agresti0)
+
+p
+```
+
+- Since we know the true value of $p$ (we selected it), we can check if our intervals captured the true $p$.  
+- Both intervals captured our $p$.  Yay!  Does this always happen?
+
+- We can check the accuracy of the intervals, more specifically the *capture probability* (also know as the coverage probability).
+- This is the long-run performance of the intervals if we repeatedly drew samples of the same size from the same population
+- Ideally this would match the confidence level (e.g., 95%).
+
+
+## Direct calculations
+
+- We could do a large simulation study with many different values of $p$ and $n$ to compare how often each method captures the unknown true $p$ in its confidence interval.
+- Instead, we can directly calculate the coverage probabilities.
+- For a given $n$ a series of values for $p$, we can calculate the capture probabilities for each method and then compare them to 95% graphically.
+
+```{r direct-compare-wald}
+## Calculate the coverage probability
+calc_wald = function(n, p, conf=0.95)
+{
+  z =  qnorm(1 - (1-conf)/2)
+  df = tibble(
+    x = 0:n,
+    d = dbinom(x,n,p), # we use dbinom instead of simulating with rbinom
+    p_hat = x/n,
+    se = sqrt( p_hat*(1-p_hat)/n ),
+    a = p_hat - z*se,
+    b = p_hat + z*se)
+  prob = df %>%
+    filter(a < p & p < b) %>% 
+    summarize(prob = sum(d)) %>% #prob of generating an x that results in a CI that contains the true p
+    pull(prob)
+  return ( prob )
+}
+
+calc_wald(n,.05, conf=.95)
+calc_wald(n,.05, conf=.9)
+```
+
+
+```{r}
+capture_wald = function(n, seq_p, conf=0.95)
+{
+  prob = numeric(length(seq_p))
+  for ( i in seq_along(seq_p) )
+  {
+    prob[i] <- calc_wald(n,seq_p[i],conf)
+  }
+  df = tibble(p = seq_p,prob=prob)
+  return ( df )
+}
+
+plot_wald = function(n, seq_p, conf=0.95,...)
+{
+  capture_wald(n, seq_p) %>%
+  ggplot(aes(x=p, y=prob)) +
+    geom_line(...) +
+    geom_hline(yintercept = conf, linetype = "dashed") +
+    ggtitle("Wald Method Capture Probability",
+            subtitle = paste("n = ",n)) +
+    theme_bw()
+}
+
+n = 90
+p = seq(0.1, 0.9, length.out = 201)
+
+plot_wald(n, p, conf=0.95, color="red") 
+```
+
+
+```{r direct-compare-ac}
+calc_agresti = function(n, p, conf=0.95)
+{
+  z = qnorm(1 - (1-conf)/2)
+  df = tibble(
+    x = 0:n,
+    d = dbinom(x,n,p),
+    p_tilde = (x+2)/(n+4),
+    se = sqrt( p_tilde*(1-p_tilde)/(n+4) ),
+    a = p_tilde - z*se,
+    b = p_tilde + z*se)
+  prob = df %>%
+    filter(a < p & p < b) %>%
+    summarize(prob = sum(d)) %>%
+    pull(prob)
+  return ( prob )
+}
+
+capture_agresti = function(n,seq_p,conf=0.95)
+{
+  prob = numeric(length(seq_p))
+  for ( i in seq_along(seq_p) )
+  {
+    prob[i] <- calc_agresti(n,seq_p[i],conf)
+  }
+  df = tibble(p = seq_p, prob = prob)
+  return ( df )
+}
+
+plot_agresti = function(n, seq_p, conf=0.95, ...)
+{
+  capture_agresti(n,seq_p) %>%
+  ggplot(aes(x=p,y=prob)) +
+    geom_line(...) +
+    geom_hline(yintercept = conf, linetype = "dashed") +
+    ggtitle("Agresti-Coull Method Capture Probability",
+            subtitle = paste("n = ",n)) +
+    theme_bw() 
+}
+
+plot_agresti(n, p, color="red") 
+```
+
+
+## Graph Interpretation and Summary
+
+- An ideal method would have a capture probability of 95% for all possible true values of $p$.
+    - There are only $n+1$ possible values for $X$, so a deterministic method will have only $n+1$ distinct confidence intervals.
+    - No such method can have a capture probability of exactly 95% for all possible $p$.
+- A method is good if the true capture probability is close to 95% for most values of $p$.
+- The Agresti-Coull method is superior to the Wald method.
+- Capture probabilities may be much less than 95% for $p$ close to 0 or 1.
+- You may use the code above to explore for different values of $n$.
+    - For smaller $n$, the advantage of the Agresti-Coull method tends to be greater.
+    - For very large $n$, both the Wald and Agresti-Coull methods are accurate
+    - The simulation method is essentially identical to the Wald method for very large simulations.
+    
+> The Agresti-Coull method is the best choice overall between the two considered here.
+
+
+
+# Hypothesis testing
+
+## Overview of Hypothesis Tests for p
+
+- When finding a confidence interval, we are trying to estimate an unknown parameter, such as $p$.
+- For a *hypothesis test*, we often examine the data to see if the data are *consistent with  the parameter having a specific fixed value* versus an alternative where it is different.
+- Typically, the null hypothesis represents a condition of no effect.
+- In the chimpanzee example, it makes sense to pose these null hypothesis and alternative hypotheses.
+    - $H_0: p = 0.5$
+    - $H_a: p \neq 0.5$
+    
+- The null hypothesis is what we would expect if the chimpanzee were choosing colored tokens at random.
+- The alternative hypothesis is the long-run probability is something other than 0.5.
+    - This difference may be interpreted as willful behavior by the chimpanzee to do something (whether acting in a pro-social or selfish manner more often than expected by chance).
+
+
+## Hypothesis Tests for p
+
+### Hypothesis Test Steps
+
+1. State the statistical model for the data
+2. State hypotheses
+3. Choose a test statistic
+4. Determine the sampling distribution of the test statistic *when the null hypothesis is true*.
+5. Determine which outcomes are *at least as extreme as the observed test statistic*, or *which outcomes are at least as favorable to the alternative hypothesis as the observed test statistic* and find the collective probability of these outcomes. This probability is called a *p-value*.
+6. Use the p-value to interpret the strength of evidence against the null hypothesis.
+    - Conventional choices are to call:
+        - $pval < 0.05$ *statistically significant*;
+        - $pval < 0.01$ *highly statistically significant*.
+7. Interpret the result in context, summarizing the statistical evidence by referring to the p-value and test.
+
+
+
+## Example
+
+Our chimpanzee made the pro-social choice 60 times out of 90.
+
+1. Model:
+
+$$
+X \mid p \sim \text{Binomial}(90,p)
+$$
+
+2. State hypotheses:
+
+$$
+H_0: p = 0.5 \\
+H_a: p \neq 0.5
+$$
+
+3. Test statistic is $X$. (You might have learned to use $\hat{p}$ in an AP Stat course.)
+
+4. If the null hypothesis is true, then
+
+$$
+X \sim \text{Binomial}(90,0.5)
+$$
+
+5. Any outcome as likely or less likely than observing $X=60$ would provide evidence against $p=0.5$ at least as strongly as the observed value.
+
+- The $\text{Binomial}(90,0.5)$ distribution has mean 45 and is symmetric, which suggests outcomes 30 or smaller or 60 or higher have the same or smaller probability as $X=60$ under the null hypothesis.
+
+- This is the distribution we assume is true (based on the null hypothesis).
+
+```{r graph-ho, fig.height=3}
+gbinom(90, 0.5, scale=TRUE) +
+  geom_vline(xintercept=60, color="red",
+             linetype="dashed") +
+  
+  theme_bw()
+```
+
+- Here are close-up looks in the left and right tails.
+
+```{r, fig.height = 3}
+## right tail
+gbinom(90, 0.5, a=60, b=90) +
+  geom_binom_density(90, 0.5, a=58, b =59, color = "gray") +
+  geom_hline(yintercept = dbinom(60,90,0.5), color = "red", linetype = "dashed") +
+  theme_bw()
+
+## left tail
+gbinom(90, 0.5, a=0, b=30) +
+  geom_binom_density(90, 0.5, a=31, b =32, color = "gray") +
+  geom_hline(yintercept = dbinom(60,90,0.5), color = "red", linetype = "dashed") +
+  theme_bw()
+```
+
+- Next, we calculate the p-value.
+    - Verify first that the individual outcomes
+$X = 0, 1, \ldots, 30, 60, \ldots, 90$ and $X \ge 60$ are those that have the same or lower probability of occurring if $p = 0.50$
+
+- To avoid checking equality for continuous values (rounding errors could lead to two values that are analytically equal being regarded as unequal), we introduce a small tolerance and look for $x$ values whose probability is less than the probability of exactly 60 successes plus this small tolerance.  
+- I use the **dplyr** function `near()` to do so.
+
+```{r extreme-x}
+## tidyverse calculation to find all x
+##    such that dbinom(x, 90, 0.5) <= dbinom(60, 90, 0.5)
+
+p_60 = dbinom(60, 90, 0.5) #P(X = 60)
+
+temp = tibble(
+  x = 0:90,
+  prob = dbinom(x, 90, 0.5)) %>% 
+  filter(prob < p_60 | near(prob, p_60)) 
+
+### See what near() selects:
+tibble(
+  x = 0:90,
+  prob = dbinom(x, 90, 0.5)) %>% 
+  filter(near(prob, p_60)) 
+
+## pvalue sums the probabilities
+##   for x = 0, 1, ..., 30, 60, 61, ..., 90
+
+pvalue = temp %>% 
+  summarize(pvalue = sum(prob)) %>% 
+  pull(pvalue)
+
+pvalue
+
+## more direct calculation assuming that c(0:30,60:90) is correct
+pvalue2 = sum(dbinom(c(0:30,60:90), 90, 0.5))
+pvalue2
+
+## yet another calculation using pbinom
+## recall P(X >= 60) = 1 - P(X <= 59)
+pvalue3 = pbinom(30, 90, 0.5) + (1 - pbinom(59, 90, 0.5))
+pvalue3
+```
+
+6. The p-value is about `r signif(pvalue,2)` which is about 1 in `r round(1/pvalue)`. This is highly statistically significant.
+
+- If the null hypothesis were true,
+we would expect to see a result this extreme only about once per every 485 experiments, yet it happened.
+- There is strong evidence that the null hypothesis is false and that the true value of $p$ is closer to the observed proportion of $\hat{p} \approx 0.667$.  
+     - It is more plausible that $p$ is not 0.5 and we just observed typical data, than it is that $p=0.5$ and we just witnessed a very improbable outcome.
+
+7. Draw a conclusion *in context, without using technical jargon*. Summarize the statistical evidence to support the evidence in parentheses.
+
+> There is strong evidence ($p = 0.0021$, two-sided binomial test) that the chimpanzee in this experiment will make the pro-social choice more than half the time in the long run under similar experimental conditions.
+
+- Note that the conclusion:
+    - speaks about the strength of evidence and not certainty of the conclusion
+    - explains what the conclusion means in the context of the experimental setting
+    - has a brief statistical summary of the evidence that:
+        - is in parentheses
+        - reports the calculated p-value without too much precision
+        - states if the test is one- or two-sided, if appropriate
+        - names the test used
+- In this case, the test is calculated by computing an exact binomial probability, and hence is named a *binomial test*.  
+
+- Note that the conclusion in context **does not**:
+    - Say that the null hypothesis is accepted or rejected
+    - Use technical terms such as null or alternative hypothesis
+
+- We are **not making a decision about truth**.
+- We are stating **a measure of the strength of the statistical evidence** against a particular hypothesis in favor of a specific alternative
+- By reporting the p-value, we let the reader use their own measure of how improbable an outcome would need to be in order to be convincing
+- The statistical hypothesis test depends on all of the modeling assumptions that we made.
+- A decision should be based on:
+    - the consequences of the decision;
+    - the statistical evidence;
+    - an assessment of the effects if the assumptions are not fully met
+    
+**When asked to interpret the results of a hypothesis test in context, do not respond:**
+
+"We reject the null hypothesis."  
+"The null hypothesis is not true."  
+"We accept the null hypothesis."  
+"The test is significant."
+
+**If a question asks, what decision would be made in a hypothesis test for a
+significance level, say, $\alpha = 0.05$, then if the p-value is less than this significance level, examples of appropriate responses would be:**
+
+The hypothesis test is rejected at the 0.05 level of significance  
+The hypothesis test is rejected at $\alpha = 0.05$
+
+
+
+## More on hypothesis testing 
+
+- To carry out a hypothesis test, a test statistic is specified which allows us to measure the compatibility between the null hypothesis and the data.  
+     - In our previous chimpanzee example, the chimpanzee made the pro-social choice 60 times out of 90.  Our test statistic was $x = 60$ (the observed realization of our binomial random variable).  We were then able to measure the compatibility between $X=60$ and the null hypothesis with $p = .5$.
+     
+- The p-value contributes to quantifying this compatibility.  
+    - The p-value is the probability of observing what we did for the test statistic (e.g., $X=60$) or something more extreme in the direction of the alternative hypothesis.
+    - In the previous chimpanzee example, we considered the *two-sided* alternative of $p \neq 0.5$ so we looked to both tails to estimate the p-value.  
+        - If we used $H_a: p > 0.5$, then we would be looking in the *upper* tail to compute the p-value ($\prob(X \geq 60)$)  
+        - If we used $H_a: p < 0.5$, then we would be looking in the *lower* tail to compute the p-value ($P(X \leq 60)$); note that this would result in a p-value > 0.50.  
+    - Smaller p-values are evidence *against* the null hypothesis.  
+
+- Failing to find statistical significance means the null hypothesis is *not* rejected.  Note that this is not the same as *accepting* the null hypothesis.
+
+#### Simple example
+
+> A noted psychic was tested for extrasensory perception (ESP). The psychic was presented with 200 cards face down and asked to determine if the cards were one of five symbols: a star, a cross, a circle, a square, or three wavy lines. The psychic was correct in 50 cases. Let p represent the probability that the psychic correctly identifies the symbol on the card in a random trial. Assume the 200 trials can be treated as a simple random sample from the population of all guesses the psychic would make in his lifetime.  Specify a hypothesis test to determine if this psychic did better than random guessing, and carry out the hypothesis test with the sample. [These numbers are made-up and are not based on an actual study.]
+
+
+The psychic made the correct choice 50 times out of 200.
+
+1. Model: $X \mid p \sim \text{Binomial}(n,p)$
+
+2. State hypotheses:
+
+$$
+H_0: p = 0.2 \\
+H_a: p > 0.2
+$$
+
+3. Test statistic is $X$. 
+
+4. If the null hypothesis is true, then
+
+$$
+X \sim \text{Binomial}(200,0.2)
+$$
+
+5. Outcomes greater than or equal to $X=50$ would provide evidence against $p=0.2$.
+
+The $\text{Binomial}(200,0.2)$ distribution has mean 40.
+
+This is the distribution we assume is true (based on the null hypothesis).
+
+```{r graph-esp, fig.height=3}
+gbinom(200, 0.2, scale = TRUE) +
+  geom_vline(xintercept = 50, color = "red",
+             linetype = "dashed", alpha = 0.5) +
+  geom_binom_density(200, .2, a=50, b=65, color="green") +
+  theme_minimal()
+```
+
+
+- Next, we calculate the p-value.
+
+```{r esp-pvalue}
+## P(X >= 50)
+p_value = 1 - pbinom(49, 200, 0.2) # P(X > 49) = P(X >= 50)
+p_value
+
+sum(dbinom(50:200, 200, 0.2))
+```
+
+- The p-value is `r round(p_value,4)`, which is borderline significant.  If we set the significance level to 0.05, we would reject the null hypothesis that the psychic was randomly guessing.
+
+Here is a conclusion in context:
+
+> There is moderate evidence that the psychic can select the correct symbol more than 20%, the rate when guessing at random ($p = 0.049$, one-sided binomial test).
+
+
+
+#### Exercise
+Suppose you are playing a die flipping game with a friend, where you suspect the die your friend provided is not fair. In fact, you think the probability the die lands with 1 dot facing up is greater than 1/6. To test this, you toss the die 300 times and observe the die lands 59 times with 1 dot facing up.
+Carry out a hypothesis test for this setting.
+
+
+Solution:
+1) State the statistical model for the data
+Model:  X = number of single dots facing up in 300 independent tosses of the die, therefore 
+$$
+X \sim \text{Binomial}(300,p)
+$$
+
+2) State hypotheses
+$$
+H_0: p = 1/6 \\
+H_a: p > 1/6
+$$
+
+3) Choose a test statistic:  We can use X as our test statistic.
+
+4) Determine the sampling distribution of the test statistic when the null hypothesis is true.
+
+Since X~Binomial(300, p), if the null hypothesis is true, then 
+$$
+X \sim \text{Binomial}(300,1/6)
+$$
+
+5) Determine which outcomes are at least as extreme as the observed test statistic, or which outcomes are at least as favorable to the alternative hypothesis as the observed test statistic and find the collective probability of these outcomes. This probability is called a p-value.
+
+The null sampling distribution is Binomial(300, 1/6).  
+The mean of this distribution is np = 300(1/6) = 50.
+As or more extreme than 59 (in the direction the alternative…larger p)  would be 59, 60, 61, …, 300.  Therefore, p-value = P(X ≥ 59).
+
+```{r}
+#Pvalue
+1-pbinom(59-1, 300, 1/6)
+sum(dbinom(59:300, 300, 1/6)) 
+```
+
+#### Some intuition
+```{r}
+### This is the distribution we assume is true (the null)
+gbinom(300, 1/6, scale=TRUE, size=1.25) +
+  geom_binom_density(n=300, p=1/6, a=59, color="cyan", scale=TRUE) + #pval region
+  geom_vline(xintercept=59, color="red", linetype="dashed") 
+
+### Since our alternative is p>1/6, we could imagine the true p is something larger than 1/6.  That is, some other distribution with p>1/6 actually generated our observed X=59
+palt = .2 # pick some value greater than 1/6
+gbinom(300, 1/6, scale=TRUE, size=1.25) +
+  geom_binom_density(n=300, p=palt, color="green", size=.9) +
+  geom_vline(xintercept=59, color="red", linetype="dashed") +
+  xlim(25, qbinom(.99,300, palt))
+
+```
+
+6) Use the p-value to interpret the strength of evidence against the null hypothesis.
+
+Since p-value ≈ 0.0958, there is not sufficient evidence to reject the null hypothesis
+
+7) Interpret the result in context, summarizing the statistical evidence by referring to the p-value and test.
+
+There is not sufficient evidence that the single dot face appears more frequently than the other faces of the die (p = 0.0958, one-sided binomial test).
+
+
+#### Side note
+What if we considered a two-sided alternative with 
+$$
+H_0: p = 1/6 \\
+H_a: p \neq 1/6
+$$
+
+How would we compute the p-value?
+
+```{r}
+n = 300
+p0 = 1/6
+x = 59
+(p_59 = dbinom(x, n, p0)) #P(X = 59)
+
+temp = tibble(
+  x = 0:n,
+  prob = dbinom(x, n, p0)) %>% 
+  filter(prob < p_59 | near(prob, p_59)) 
+
+## pvalue sums the probabilities for x=0,1,...,40, and 59, 60,...,300
+gbinom(n, p0) +
+  geom_binom_density(n, p0, a=0, b=40, color="red") + 
+  geom_binom_density(n, p0, a=59, b=300, color="red") +
+  geom_hline(yintercept=p_59, color="black",linetype="dashed") +
+  geom_vline(xintercept=59, color="magenta",linetype="dotted") +
+  xlim(0, 100)
+
+temp %>% 
+  summarize(pvalue = sum(prob)) %>% 
+  pull(pvalue)
+
+### Note:  this is NOT 2 times the original p-value
+2*sum(dbinom(59:300, 300, 1/6)) 
+```
+
+
+
+
+
+
+
+
+# Chimpanzees Analysis:  Differences Between Proportions
+
+
+## CI for a Difference of Proportions
+
+### Data
+
+```{r read-data}
+chimps = read_csv("../../data/chimpanzee.csv") %>%
+  mutate(with_partner = case_when(
+    partner == "none" ~ "no partner",
+    TRUE ~ "partner")) %>%
+  relocate(with_partner, .after = partner)
+
+chimps
+```
+
+
+### Inference question
+
+> Does chimpanzee C make the pro-social choice more often when there is a partner in the neighboring room than when there is no partner present?
+
+```{r}
+chimp_c = chimps %>%
+  filter(actor == "C") %>%
+  group_by(with_partner) %>%
+  summarize(prosocial = sum(prosocial),
+            selfish = sum(selfish), 
+            n = prosocial + selfish, 
+            p_hat = prosocial/n)
+chimp_c
+```
+
+- The point estimates are 63.3% with a partner and 56.7% without a partner.
+- Is this difference significant?
+- We will consider multiple approaches.
+
+
+#### Statistical Model
+
+The statistical model is:
+
+- $p_1$ is the probability that Chimpanzee C makes the pro-social choice when there is a partner
+- $p_2$ is the probability that Chimpanzee C makes the pro-social choice when there is no partner
+
+$$
+X_1 \mid p_1 \sim \text{Binomial}(90,p_1) \\
+X_2 \mid p_2 \sim \text{Binomial}(30,p_2)
+$$
+
+#### Confidence Interval from Simulation
+
+- Estimate $p_1$ and $p_2$ from the original two samples
+- Simulate many independent samples of the same size, using in the estimated values for the unknown $p_1$ and $p_2$.
+- For each pair of samples, calculate the difference in sample proportions
+- Calculate the standard deviation of these differences:
+    - This is a simulation-based estimate of the *standard error* of the difference between two population proportions
+- Verify that the shape of the sampling distribution of $\hat{p}_1 - \hat{p}_2$ is approximately normal
+- If so, create a confidence interval centered at the point estimate, plus or minus 1.96 times the SE.
+
+```{r}
+B = 1000000
+## x_partner = 57
+## n_partner = 90
+## p_partner = x_partner / n_partner
+n1 = chimp_c %>% filter(with_partner == "partner") %>% pull(n)
+phat1 = chimp_c %>% filter(with_partner == "partner") %>% pull(p_hat)
+## x_no_partner = 17
+## n_no_partner = 30
+## p_no_partner = x_no_partner / n_no_partner
+n2 = chimp_c %>% filter(with_partner == "no partner") %>% pull(n)
+phat2 = chimp_c %>% filter(with_partner == "no partner") %>% pull(p_hat)
+
+## Show these values
+n1
+phat1
+n2
+phat2
+
+## Do the simulation
+chimp_c_sim = tibble(
+  x1 = rbinom(B, n1, phat1),
+  x2 = rbinom(B, n2, phat2),
+  phat1 = x1/n1,
+  phat2 = x2/n2,
+  diff = phat1 - phat2)
+```
+
+- Show the first few rows
+
+```{r}
+chimp_c_sim %>% 
+  print(n = 20, width = Inf)
+```
+
+- Calculate the estimated standard error
+    - Here the *standard error*, $\text{SE}(\hat{p}_1 - \hat{p}_2)$, is the standard deviation of the sampling distribution of $\hat{p}_1 - \hat{p}_2$.
+
+```{r}
+se_sim = chimp_c_sim %>% 
+  summarize(se = sd(diff)) %>% 
+  pull(se)
+
+se_sim
+```
+
+- Just by chance, we expect the difference in sample proportions to differ by about 0.10 from the true unknown difference.
+
+- Examine the shape of the sampling distribution.
+
+```{r, fig.height = 3}
+ggplot(chimp_c_sim, aes(x = diff)) +
+  geom_density(fill = "papayawhip") +
+  geom_hline(yintercept = 0) +
+  xlab("Difference in sample proportions") +
+  theme_minimal() +
+  geom_norm_density(mu=phat1-phat2, sigma= se_sim, color="red", linetype="dashed")
+```
+
+- The shape of the density looks approximately normal
+
+### Finish the 95% Confidence Interval
+
+$$(\text{point estimate}) \pm 1.96 \times (\text{standard error})$$
+
+```{r}
+## calculation
+chimp_c_ci = tibble(
+  estimate = phat1 - phat2,
+  se = se_sim,
+  z = qnorm(0.975),
+  low = estimate - z*se,
+  high = estimate + z*se)
+
+chimp_c_ci
+```
+
+> We are 95% confident that difference in long-run probabilites that chimpanzee C make the pro-social choice with and without a partner is between 0.27 higher with a partner and 0.14 higher without a partner.
+
+
+## Using Formulas
+
+#### Confidence Interval for a Difference Formula
+
+- Mathematical statistics provides a formula for $\text{SE}(\hat{p}_1 - \hat{p}_2)$.
+
+$$
+\text{SE}(\hat{p}_1 - \hat{p}_2) =
+  \sqrt{ \frac{p_1(1-p_1)}{n_1} + \frac{p_2(1-p_2)}{n_2} }
+$$
+
+- Note that
+
+$$
+\text{SE}(\hat{p}_1 - \hat{p}_2) = 
+\sqrt{ \text{SE}(\hat{p}_1)^2 + \text{SE}(\hat{p}_2)^2 }
+$$
+
+- This follows from a probability fact that the variance of sum (or difference) of independent random variables is the sum of the individual variances.
+    - Here, $\hat{p}_1$ and $\hat{p}_2$ are modeled as independent as each is calculated using data from different trials (and in fact, from different sessions on different days).
+
+- Just like with a single sample, we can improve the accuracy (true capture probability is closer to 95%) by adding some extra values.
+    - Agresti and Coffe showed in 2000 that adding one fake observation of each type to each interval improves the coverage probabilities
+    - (Just like the Agresti-Coull method for a single $p$ with four additional artificial observations, but spread them out, two to each sample.)
+
+```{r}
+## tidyverse calculation
+chimp_c_ci_2 = chimp_c %>%
+  mutate(n_tilde = n+2,
+         p_tilde = (prosocial + 1)/n_tilde, 
+         se = sqrt(p_tilde*(1 - p_tilde)/n_tilde)) %>% 
+  summarize(estimate = diff(p_tilde),
+            se = sqrt( sum( se^2 ) ),
+            z = qnorm(0.975),
+            low = estimate - z*se,
+            high = estimate + z*se)
+chimp_c_ci_2
+```
+
+- Base R calculations
+
+```{r}
+## base R calculations
+x1 = 57
+n1 = 90
+x2 = 17
+n2 = 30
+ntilde1 = n1 + 2
+ntilde2 = n2 + 2
+ptilde1 = (x1+1)/ntilde1
+ptilde2 = (x2+1)/ntilde2
+estimate = ptilde1 - ptilde2
+se1 = sqrt( ptilde1*(1-ptilde1)/ntilde1 )
+se2 = sqrt( ptilde2*(1-ptilde2)/ntilde2 )
+se = sqrt(se1^2 + se2^2 )
+z = qnorm(0.975)
+low = estimate - z*se
+high = estimate + z*se
+ci = c(low, high)
+ci
+
+```
+
+- The 95% confidence interval for the difference extends from the pro-social probability with a partner being anywhere from 13% lower to 26.6% higher than the pro-social choice without a partner.
+- This is consistent with there being no difference in the probabilities.
+
+
+
+## Hypothesis Tests for Testing Differences
+
+### Inference question
+
+> If we ignore differences among actors, do chimpanzees make prosocial choices more often with a partner than without?
+
+- Data summary: find the number of choices of each type for each condition.
+
+```{r}
+chimp_sum = chimps %>%
+  group_by(with_partner) %>%
+  summarize(prosocial = sum(prosocial),
+            selfish = sum(selfish), 
+            n = prosocial + selfish, 
+            p_hat = prosocial/n)
+chimp_sum
+```
+
+- Over the entire experiment, chimpanzees made the pro-social choice 58.9% of the time with a partner present compared to 46.1% of the time with no partner.
+- We wish to distinguish between two possibilities:
+    - In the long run, chimpanzees will make the pro-social choice more often when there is a partner present
+    - There is no difference in behavior when a partner is present or not: the observed difference may plausibly be explained by random chance
+
+## Testing from Simulation
+
+- In an estimation inference situation, we are estimating the difference between $p_1$ and $p_2$ and so estimate these separately before doing the simulation.
+- In contrast, when we do a hypothesis test, we begin **by making the assumption that the null hypotheses that $p_1 = p_2$ is true** and so we need to conduct the simulation with this assumption in mind.
+
+## Statistical Model
+
+1. State a statistical model
+
+- $p_1$ is the probability that chimpanzees makes the pro-social choice when there is a partner
+- $p_2$ is the probability that chimpanzees makes the pro-social choice when there is no partner
+
+$$
+X_1 \mid p_1 \sim \text{Binomial}(610,p_1) \\
+X_2 \mid p_2 \sim \text{Binomial}(180,p_2)
+$$
+
+- This model may be criticized as it ignores potential effects from:
+    - behavior differences among different actors
+    - identity of specific partners
+    - day-to-day differences
+    - reactions by the partner from the previous action
+- Nevertheless, we may do the test and be aware of potential issues when making interpretations
+- With the real data, it is possible to examine potential effects where the model may be inaccurate and potentially misleading
+
+2. State hypotheses:
+
+$$
+H_0: p_1 = p_2 \\
+H_a: p_1 \neq p_2
+$$
+
+- The null hypothesis is there is no difference in behavior whether or not  a partner is present.
+- The alternative hypothesis is that there is a difference
+
+3. Calculate a test statistic:
+
+- The most direct test statistic we may select is the difference in sample proportions, $\hat{p}_1 - \hat{p}_2$.
+- If the null hypothesis is true, we expect this statistic to be close to zero with differences caused by random sampling variation
+- If the null hypothesis is false, then we expect this statistic to be different from zero
+
+```{r}
+test_stat = chimp_sum %>% 
+  select(p_hat) %>% 
+  summarize(stat = diff(p_hat)) %>% 
+  pull(stat)
+              
+  
+test_stat
+```
+
+- In the experiment, we observe chimpanzees making the pro-social choice 12.7% more often with a partner present than without.
+
+4. Determine the null sampling distribution of the test statistic
+
+- If the null hypothesis is true, then $p_1 = p_2$ the distribution of the test statistic is whatever it is when $X_1$ and $X_2$ are drawn from binomial distributions with the same success probability $p$.
+- To estimate $p$ from the data, we combine both samples:
+$$
+\bar{p} = \frac{X_1 + X_2}{n_1 + n_2} = \frac{359 + 83}{610 + 180} \doteq 0.559
+$$
+
+5. Calculate the p-value.
+
+- Here, we use simulation.
+    - Pick a large number of replications, say $B = 1,000,000$.
+    - Generate independent binomial random variables $X_1$ and $X_2$ of the appropriate size
+    - Find the difference between the sample proportions.
+    - See how often a value as extreme as that from the original data occurs.
+    
+```{r}
+## calculate the combined sample estimate of p
+p0 = chimp_sum %>% 
+  summarize(prosocial = sum(prosocial),
+            n = sum(n),
+            p = prosocial / n) %>% 
+  pull(p)
+
+p0
+
+## create a tibble with the simulation results
+B = 1000000
+n1 = chimp_sum %>% filter(with_partner == "partner") %>% pull(n)
+n2 = chimp_sum %>% filter(with_partner == "no partner") %>% pull(n)
+x1 = chimp_sum %>% filter(with_partner == "partner") %>% pull(prosocial)
+x2 = chimp_sum %>% filter(with_partner == "no partner") %>% pull(prosocial)
+test_stat = (x1/n1) - (x2/n2)
+test_stat
+
+## set the random seed so we can repeat exactly if desired
+set.seed(20010731)
+
+sim = tibble(
+  x1 = rbinom(B, n1, p0), #Notice p0 is used here
+  n1 = n1,
+  x2 = rbinom(B, n2, p0), #Notice p0 is used here
+  n2 = n2,
+  phat1 = x1/n1,
+  phat2 = x2/n2,
+  diff = phat1 - phat2)
+
+sim %>% print(n=15, width = Inf)
+```
+
+- The p-value is what fraction of the time that the simulated test statistic is at least as extreme in the direction of the alternative hypothesis as the statistic calculated from the actual data
+    - These are the outcomes at least as *favorable to the alternative hypothesis as the observed data*
+- Here, we expect the statistic to be zero, on average, when the null hypothesis is true.
+- We have a two-sided alternative hypothesis, $H_a: p_1 \neq p_2$
+- At least as extreme, here, means further away from zero than the test statistic from the actual data.
+- We can be careful comparing equality of floating point numbers using `near()`
+
+```{r}
+pvalue_sim = sim %>% 
+  summarize(
+    pvalue = mean( abs(diff) > test_stat | near(abs(diff), test_stat)) ) %>% 
+  pull(pvalue)
+
+pvalue_sim
+```
+
+- The p-value `r signif(pvalue_sim,2)` indicates strong evidence against the null hypothesis of equal probabilities.
+
+
+6. Logic explanation.
+
+- This is a small p-value that is significant at the conventional 0.05 and 0.01 levels as $pval < 0.05$ and $pval < 0.01$.
+- One may call this *highly statistically significant*.
+- If $p_1 = p_2$, meaning chimpanzees make the pro-social choice equally as often in the long run with or without a partner present in this experimental setting, then a difference as large as we actually observed is rather improbable (expected to happen less than three times out of 1000 experiments).
+- Hence, we have evidence to support the conclusion that there is a difference in the two long-run probabilities.
+- Even with a two-sided alternative, we can interpret the direction of the difference based on the observed data.
+- Our p-value was **conservative** as we allowed the possibility of rejecting the null hypothesis to occur if the difference had been in either direction.
+
+7. Interpretation in context.
+
+> There is very strong evidence to support the conclusion that chimpanzees exhibit pro-social behavior in the experimental setting more often when a partner is present than when one is not ($p = 0.0025$, binomial simulation test for differences in proportions).
+
+
+## Simulation check
+
+- We can verify the simulation results by computing some summary statistics and graphing the sampling distribution.
+
+```{r}
+sim %>% 
+  summarize(mean = mean(diff),
+            sd = sd(diff),
+            pvalue = mean(abs(diff) >= test_stat))
+```
+
+- The mean of the sampling distribution is very close to zero, as expected.
+
+```{r, fig.height = 3}
+ggplot(sim, aes(x=diff)) +
+  geom_density(fill = "papayawhip") +
+  geom_vline(xintercept = test_stat, color = "red", linetype = "dashed") +
+  geom_hline(yintercept = 0) +
+  xlab("Difference in Sample Proportions") +
+  theme_minimal() 
+```
+
+- We see that the sampling distribution is well-approximated by a normal curve
+- The test statistic is far out in the tail, so we expect a small p-value.
+
+
+## Normal approximation for p-value
+
+- There is also an equation-based solution.
+
+- If both sample sizes are large enough, then the sampling distribution of the difference is approximately normal.
+    - $n_1 = 630$, $n_2 = 180$
+    - the estimated $p$ is not close to either 0 or 1
+    
+- If the null hypothesis is true, our estimate of the common value for $p_1$ and $p_2$ is $\bar{p} = (359 + 83) / (630 + 180) \doteq `r round(p0,4)`$.
+- The variance of $\hat{p}_i$ is $\frac{p_i(1 - p_i)}{n_i}$ for $i=1,2$.
+- The variance of $\hat{p}_1 - \hat{p}_2$ is the sum of the variances.
+- The standard error is the square root of the variance.
+
+$$
+\text{SE}(\hat{p}_1 - \hat{p}_2) = \sqrt{
+\frac{p_1(1-p_1)}{n_1} + \frac{p_2(1-p_2)}{n_2} }
+$$
+
+- Use the common estimate $\bar{p} = `r round(p0,4)`$ for both $p_1$ and $p_2$.
+- Use the standardization formula
+$$
+z = \frac{(\hat{p}_1 - \hat{p}_2) - 0}{\text{SE}}
+$$
+- and find the p-value with an area under the curve.
+
+```{r}
+n1 = chimp_sum %>% filter(with_partner == "partner") %>% pull(n)
+n2 = chimp_sum %>% filter(with_partner == "no partner") %>% pull(n)
+x1 = chimp_sum %>% filter(with_partner == "partner") %>% pull(prosocial)
+x2 = chimp_sum %>% filter(with_partner == "no partner") %>% pull(prosocial)
+test_stat = (x1/n1) - (x2/n2)
+p0 = (x1 + x2)/(n1 + n2)
+se = sqrt( p0*(1-p0)/n1 + p0*(1-p0)/n2 )
+z = test_stat / se
+z
+## p-value is twice the area to the right of z under the standard normal curve.
+## this is also twice the area to the left of -|z| due to symmetry
+pvalue_z = 2*pnorm(-abs(z))
+pvalue_z
+pvalue_sim
+```
+
+- The simulation and the theory result in essentially the same numerical value of the p-value which is interpreted in the same way.
+
+> There is very strong evidence that chimpanzees make the pro-social choice more often when a partner is present than when not present ($p = 0.0025$, z-test for difference in proportions).
+
+
+
+
+
+
+
+
+
+
+

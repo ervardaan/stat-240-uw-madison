@@ -1,0 +1,1155 @@
+---
+title: "Inference on Means"
+author: "Bret Larget"
+output: html_document
+---
+This R Markdown document includes contributions by Professor Jessi Kehe.
+
+\renewcommand{\prob}{\mathsf{P}}
+\newcommand{\E}{\mathsf{E}}
+\newcommand{\Var}{\mathsf{Var}}
+\newcommand{\SD}{\mathsf{SE}}
+\newcommand{\SE}{\mathsf{SE}}
+
+### Setup details
+
+- This lecture use the following scripts, assumed to be in your course scripts directory.
+    - `COURSE/scripts/viridis.R`
+    - `COURSE/scripts/ggprob.R`
+    
+- You also need the following data sets
+    - `COURSE/data/TIM1.txt`
+    - `COURSE/data/boston-marathon-data.csv`
+    - `COURSE/data/butterfat.txt`
+    - `COURSE/data/lizards.txt`
+
+- You will need the package **tidyverse** for these lectures.  
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      error = TRUE, fig.height = 4)
+library(tidyverse)
+library(kableExtra)
+library(egg)
+
+source("../../scripts/viridis.R")
+source("../../scripts/ggprob.R")
+
+theme_set(theme_minimal())
+```
+
+
+## The Boston Marathon
+
+- The Boston Marathon is the world's oldest annual marathon competition.
+- It has been run every year since 1897 (one year after the first modern marathon competition in the 1896 Olympic Games), except for 2020 due to the COVID-19 pandemic
+- In most years, the Boston Marathon is held on Patriot Day, the third Monday of April, but in 2021 was delayed to October.
+- The 2013 race was stopped prematurely, preventing many competitors from finishing, due to a terrorist bombing near the finish line which killed three spectators and injured hundreds of people.
+- The length of a marathon race is 26.2 miles, or about 42.65 km.
+- Entrance in the Boston Marathon requires obtaining a qualifying time based on age and sex in a qualified marathon race in the 18 months prior.
+
+### Populations and Samples
+
+- The data we use are from all finishers in the years 2010 and 2011.
+- The original data includes some results from 2013.
+- The purpose the data was collected was to estimate the finishing times of competitors who were not allowed to complete the race due to the bombing.
+- Not all individuals who are eligible to compete in the Boston Marathon in a given year actually compete.
+- We will consider the observed data as representative samples from the populations of people worldwide eligible to race in the Boston Marathon and would finish the race in the given years.
+- Various questions will consider sub-populations based on the age and sex of the competitors.
+- The age of a competitor is determined by their age on the date of the race.
+- There are different records and sub-competitions based on sex and various age ranges: 18-34, 35-39, 40-44, $\ldots$, 75-79, and 80 and older.
+- There are typically thousands of runners in the race.
+- Not all runners can start at the same time: runners begin the race in stages and run with chips in their shoes which allows accurate individual times to be calculated.
+
+
+### Data Wrangling
+
+- Data source: [Boston Maraton Data](https://rls.sites.oasis.unc.edu/boston.html)
+
+- The data set `TIM.txt` contains all times from 2010, 2011, and 2013.
+
+- We make the following changes to the original data:
+    - Eliminate the year 2013 as many racers did not finish due to the bombing
+    - Create a `Sex` variable
+    - Sum the times for racers for different race segments to obtain a total time
+    - Add an `Age_Range` variable
+- Note the use of `read_table()` to read in the data
+    - The `col_types` argument is set so that each column is read in as type *double* by default.
+
+
+```{r}
+bm_orig = read_table("../../data/TIM.txt",
+                col_types = cols(.default = col_double()))
+
+bm = bm_orig %>% 
+  filter(!is.na(`K40-Fin`)) %>% 
+  filter(Year < 2013) %>% 
+  arrange(Year, BibNum) %>% 
+  select(-starts_with("Start"), -HalfMar, -Age2014) %>% 
+  mutate(Sex = case_when(
+    Gender1F2M == 1 ~ "female",
+    Gender1F2M == 2 ~ "male")) %>% 
+  mutate(Time = pmap_dbl(select(., starts_with("K")), sum)) %>% 
+  mutate(age1 = case_when(
+    Age < 35 ~ 18,
+    Age >= 80 ~ 80,
+    TRUE ~ floor(Age/5)*5),
+    age2 = case_when(
+      Age < 35 ~ 34,
+      TRUE ~ age1 + 4),
+    Age_Range = case_when(
+      age1 == 80 ~ "80 and older",
+      TRUE ~ str_c(age1,"-",age2))) %>% 
+  select(-Gender1F2M, -age1, -age2) %>% 
+  relocate(BibNum, Year, Sex, Age, Age_Range, Time)
+
+```
+
+### Variables
+
+- The transformed data set has these variables:
+    - `BibNum`: bib number, a unique identifier for each competitor within a year
+    - `Year`: either 2010 or 2011
+    - `Sex`: female or male
+    - `Age`: age in years
+    - `Age_Range`: from 18-34, 35-39, ..., 75-79, and 80 and older
+    - `Time`: total time to finish in decimal minutes
+    - `K0-5` through `K40-Fin`: times in decimal minutes for 5 km segments of the race plus the final shorter segment.
+    
+### Data Explorations
+
+- We present a few data explorations
+
+#### Number of Competitors by Year, Age, and Age Range
+
+```{r}
+bm %>% 
+  count(Year, Sex, Age_Range) %>% 
+  pivot_wider(names_from = Age_Range,
+              values_from = n)
+```
+
+
+```{r}
+bm %>% 
+  filter(Year == 2010) %>% 
+ggplot(aes(x = Sex, fill = Sex)) +
+  geom_bar() +
+  xlab("") +
+  ylab("# of Finishers") +
+  ggtitle("2010 Boston Marathon Finishers") +
+  facet_wrap(~Age_Range)
+
+bm %>% 
+  filter(Year == 2011) %>% 
+ggplot(aes(x = Sex, fill = Sex)) +
+  geom_bar() +
+  xlab("") +
+  ylab("# of Finishers") +
+  ggtitle("2011 Boston Marathon Finishers") +
+  facet_wrap(~Age_Range)
+```
+
+#### Times
+
+```{r}
+bm %>% 
+  group_by(Year, Sex, Age_Range) %>% 
+  summarize(n = n(),
+            min = min(Time),
+            q10 = quantile(Time, 0.10),
+            median = median(Time),
+            q90 = quantile(Time, 0.90)) %>% 
+  print(n = Inf)
+```
+
+
+```{r}
+bm %>% 
+  filter(Year == 2010) %>% 
+ggplot(aes(x = Sex, y = Time, fill = Sex)) +
+  geom_boxplot(coef = Inf) +
+  xlab("") +
+  ylab("Finish Times") +
+  ggtitle("2010 Boston Marathon Finishers") +
+  facet_wrap(~Age_Range)
+
+bm %>% 
+  filter(Year == 2011) %>% 
+ggplot(aes(x = Sex, y = Time, fill = Sex)) +
+  geom_boxplot(coef = Inf) +
+  xlab("") +
+  ylab("Finish Times") +
+  ggtitle("2011 Boston Marathon Finishers") +
+  facet_wrap(~Age_Range)
+```
+
+
+
+## Estimation of a Population Mean
+
+- Let's consider females marathon runners fast enough to qualify for and finish the 2010 Boston Marathon, aged 18-34, and estimate the mean time such runners would have finished had they competed.
+- We consider the population to be all females aged 18-34 who are eligible for the Boston Marathon and able to complete the course in 2010.
+
+### Statistical Model
+
+- Let $\mu$ be the mean time in minutes for this population.
+- Our data is the 3557 times of the women in this age group who actually did complete the race, $x_1, \ldots, x_n$ for $n = 3557$.
+- We model the data as if being drawn from some distribution $F$ with mean $\mu$ and standard deviation $\sigma$ and as if they are independent observations.
+
+$$
+X_i \sim F(\mu, \sigma) \quad \text{for $i = 1, \ldots, n$}
+$$
+
+### Data Summary
+
+- The finishing times for our sample.
+
+```{r}
+prob1 = bm %>% 
+  filter(Sex == "female",
+         Age_Range == "18-34",
+         Year == 2010)
+
+prob1_sum = prob1 %>% 
+  summarize(n = n(),
+            mean = mean(Time),
+            sd = sd(Time))
+
+prob1_sum
+
+ggplot(prob1, aes(x = Time)) +
+  geom_density(fill = "lightpink", color = "black") +
+  geom_hline(yintercept = 0) +
+  xlab("Finishing Time") +
+  ggtitle("2010 Boston Marathon",
+          subtitle = "Women aged 18-34") +
+  theme_minimal()
+  
+```
+
+- Our point estimate is $\bar{x} = `r round(prob1_sum$mean, 3)`$ minutes
+- Note that the distribution of finishing times in the same is not normally distributed: will this affect our method to construct a confidence interval?
+- We are interested in the **sampling distribution of the sample mean**
+
+
+### Simulation
+
+- To explore the normality question, we do the following simulation experiment
+- Treat the sample as an estimate of the underlying population
+- Take random samples of size 3557 (with replacement) from the sample
+- Calculate the sample mean of each resampled data set
+- Repeat many times
+- Examine center (mean), spread (standard deviation), and shape of the sampling distribution of the sample mean
+
+```{r}
+B = 50000
+x = prob1 %>% pull(Time)
+
+set.seed(20211115)
+sample_means = tibble(
+  xbar = map_dbl(1:B, ~{return( mean(sample(x, replace = TRUE)) )}))
+
+sim1_sum = sample_means %>% 
+  summarize(n_samples = n(),
+            n = length(x), 
+            mean = mean(xbar),
+            sd = sd(xbar))
+
+sim1_sum
+
+ggplot(sample_means, aes(x = xbar)) +
+  geom_histogram(aes(y = after_stat(density)), binwidth = 0.25,
+                 fill = "cyan", color = "black") +
+  geom_density(fill = "lightpink", color = "black",
+               line_width = 1, alpha=.5, linetype="dotted") +
+  geom_norm_density(sim1_sum$mean, sim1_sum$sd, line_width = 1.5) +
+  geom_hline(yintercept = 0) +
+  xlab("Finishing Time Sample Means") +
+  ggtitle("2010 Boston Marathon, Women aged 18-34",
+          subtitle = "Sampling Distribution of the Sample Mean, n = 3557") +
+  theme_minimal()
+```
+
+- The normal density (blue curve) matching the mean and sd of the sampling distribution is very close to the simulated density (black dotted curve).
+
+
+
+### Repeat for Smaller n
+
+- Let's look at the shape if $n=50$ instead
+
+```{r}
+B = 50000
+n = 50
+x = prob1 %>% pull(Time)
+
+set.seed(20211115)
+sample_means = tibble(
+  xbar = map_dbl(1:B, ~{
+  return( mean(sample(x, size = n, replace = TRUE)) )
+}))
+
+sim2_sum = sample_means %>% 
+  summarize(n = n(),
+            mean = mean(xbar),
+            sd = sd(xbar))
+
+sim2_sum
+
+ggplot(sample_means, aes(x = xbar)) +
+  geom_density(fill = "lightpink", color = "black") +
+  geom_norm_density(sim2_sum$mean, sim2_sum$sd) +
+  geom_hline(yintercept = 0) +
+  xlab("Finishing Time Sample Means") +
+  ggtitle("2010 Boston Marathon, Women aged 18-34",
+          subtitle = "Sampling Distribution of xbar, n = 50") +
+  theme_minimal()
+```
+
+- Note that the sampling distribution of the sample mean has an approximate normal shape, even for a much smaller sample size such as $n=50$, despite the skewed population.
+
+
+
+### Back to a Confidence Interval
+
+- The sample mean is $\bar{x} = `r round(prob1_sum %>% pull(mean), 3)`$
+- The sample standard deviation of finishing times is
+$s = `r round(prob1_sum %>% pull(sd), 3)`$
+- The SE estimated from the simulation is
+$\text{SE}(\bar{x}) = `r round(sim1_sum %>% pull(sd), 3)`$
+
+$$
+(\text{point estimate}) \pm z \text{SE}
+$$
+
+$$
+235.506 \pm 1.96(0.609)
+$$
+
+```{r}
+z = qnorm(0.975)
+ci = prob1_sum$mean + c(-1,1)*z*sim1_sum$sd
+round(ci,3)
+```
+
+### Interpretation
+
+> We are 95% confident that the mean finishing time of women aged 18-34 capable of finishing the Boston Marathon in 2010 would have been between 234.31 and 236.70 minutes.
+
+
+## Formula Instead of Simulation
+
+- As with proportions, there is a formula we could have used instead of simulation to determine the standard error
+
+$$
+\text{SE}(\bar{x}) = \frac{\sigma}{\sqrt{n}}
+$$
+
+- where $\sigma$ is the population standard deviation.
+
+- We can replace the $\sigma$ with the sample standard deviation.
+    - When $n$ is quite large, such as $n = 3557$ in our example, $s$ is typically a very accurate estimate of $\sigma$
+    - Examine our example below
+    
+```{r}
+## Simulation SE
+sim1_sum$sd
+
+## Formula
+prob1_sum$sd / sqrt(prob1_sum$n)
+```
+    
+## Built-in R Function
+
+- There is also a built-in R function `t.test()` which does a hypothesis test and a confidence interval.
+- Here, ignore the hypothesis test output
+- Note the use of the t distribution which accounts for replacing $\sigma$ with $s$
+    - For a large sample size of $n = 3557$, this makes very little difference.
+    
+```{r}
+t.test(x)
+```
+
+- Instead of using the 0.975 quantile from a standard normal distribution, $z = `r qnorm(0.975)`$
+- Use instead $t = `r qt(0.975, 3557-1)`$
+
+## Hypothesis Testing for the population mean
+
+### Statistical Model
+
+- Let's continue considering the population to be all females aged 18-34 who were eligible for the Boston Marathon and able to finish the course in 2010.
+- Let $\mu$ be the mean time in minutes for this population.
+- Our data is the 3557 times of the women in this age group who actually did complete the race, $x_1, \ldots, x_n$ for $n = 3557$.
+- We model the data as if being drawn from some distribution $F$ with mean $\mu$ and standard deviation $\sigma$ and as if they are independent observations.
+
+$$
+X_i \sim F(\mu, \sigma) \quad \text{for $i = 1, \ldots, n$}
+$$
+
+#### Females, 18-34
+
+```{r}
+women_18_34 = bm %>% 
+  filter(Sex == "female" & Age_Range == "18-34" & Year == 2010)
+
+women_18_34_sum = women_18_34 %>% 
+  summarize(n = n(),
+            xbar = mean(Time),
+            s = sd(Time))
+
+women_18_34_sum
+
+ggplot(women_18_34, aes(x = Time)) +
+  geom_histogram(fill = "lightpink",
+                 color = "black",
+                 boundary = 120,
+                 binwidth = 10) +
+  ylab("# of Women") +
+  ggtitle("2010 Boston Marathon Times",
+          subtitle = "Women aged 18-34, finishers") +
+  theme_minimal()
+
+```
+
+
+### Hypothesis Test
+- If:
+    - we are willing to treat the finishers in the 2010 Boston Marathon as a representative sample of all people in the world who could have qualified for and completed the Boston Marathon at that time (defining the population)
+    - $\mu$ is the average time in minutes that this population of 18-34 year old women would have finished the Boston Marathon had they all competed
+    
+> Test the hypothesis that the mean time $\mu = 240$ minutes versus the alternative that it is less ($\mu < 240$).
+
+- This is a one-sided hypothesis test.
+
+Steps for carrying out a hypothesis test:
+
+0.  State the population and sample
+1.  State the statistical model for the data  
+2.  State hypotheses  
+3.  Choose a test statistic  
+4.  Determine the sampling distribution of the test statistic *when the null hypothesis is true*.  
+5.  Determine which outcomes are *at least as extreme* as the observed test statistic, or which outcomes are at least as favorable to the alternative hypothesis as the observed test statistic, and find the collective probability of these outcomes. This probability is called a p-value.  
+6.Use the p-value to interpret the strength of evidence against the null hypothesis.
+Conventional choices are to call:    
+    - pval<0.05 statistically significant;  
+    - pval<0.01 highly statistically significant.  
+7.  Interpret the result in context, summarizing the statistical evidence by referring to the p-value and test.
+
+
+### Population and Sample
+
+- The population is women aged 18-34 in 2010 who were eligible for and could have competed in and finished the Boston Marathon that year
+- The sample is the 3557 women in this age group who did.
+
+### Statistical Model
+
+- Individuals times are $x_1, \ldots, x_n$ for $n = 3557$.
+- Model these times as a random sample from the larger population
+    - Let $F$ be this unspecified distribution
+    - Let $\mu$ be the mean
+    - Let $\sigma$ be the standard deviation
+
+$$
+X_i \sim F(\mu, \sigma), \quad i = 1, \ldots, n
+$$
+
+### State Hypotheses
+
+$H_0: \mu = 240$    
+$H_a: \mu < 240$
+
+### Choose a Test Statistic
+
+- We will standardize the sample mean by subtracting the (assumed) population mean and dividing by an estimated standard error.
+- Compare this normalized statistic to a distribution known from mathematical statistics
+
+$$
+T = \frac{\bar{X} - \mu_0}{s / \sqrt{n}}
+$$
+
+where:
+
+- sample mean: $\bar{X} = \displaystyle \frac{\sum_{i=1}^n X_i}{n}$
+    - R function `mean()`
+- sample standard deviation $s = \displaystyle \sqrt{ \sum_{i=1}^n \frac{(x_i - \bar{x})^2}{n-1}}$
+    - R function `sd()`
+- $\mu_0$ is the numerical value assumed equal to $\mu$ under $H_0$.    
+
+- Here is the calculation for the observed test statistic (assuming the null hypothesis is true)
+
+```{r}
+## Assuming the null
+mu0 = 240
+
+women_18_34_sum = women_18_34_sum %>% 
+  mutate(tstat = (xbar - mu0)/(s/sqrt(n)))
+
+tstat = women_18_34_sum %>% 
+  pull(tstat)
+
+women_18_34_sum
+
+tstat
+```
+
+- We may interpret the test statistic in this way:
+
+> The observed sample mean is about 7.41 standard errors below the mean of the null distribution $\mu_0 = 240$.
+
+### Sampling Distribution
+
+- If the null hypothesis is true:
+    - $\bar{X}$ has:
+        - an approximate normal distribution, if $n$ is large enough
+        - mean $\mu_0$ (true for any $n$) and
+        - standard deviation $\sigma/\sqrt{n}$ (true for any $n$)
+
+- A result from mathematical statistics says that when we replace $\sigma$ with the sample standard deviation $s$, that
+
+$$
+T = \frac{\bar{X} - \mu}{s / \sqrt{n}} \sim t(n-1)
+$$
+
+- where $t(n-1)$ is a $t$ distribution with $n-1$ degrees of freedom
+- More on $t$ distribution later.
+
+### P-value Calculation
+
+- The p-value is the area to the left of the test statistic under the null sampling distribution. (Left because $H_a: \mu < 240$)
+- The function `pt(x, df)` calculates the probability (area) to the left of `x` under a `t` density with `df` degrees of freedom (more on this term later).
+- The observed test statistic is $T_{obs} = `r round(tstat,2)`$
+- Statistics which are at least as favorable to the alternative hypothesis are those values less than or equal to $T_{obs}$.
+
+```{r}
+women_18_34_sum = women_18_34_sum %>% 
+  mutate(pvalue = pt(tstat, n-1))
+
+pvalue = women_18_34_sum %>% pull(pvalue)
+
+women_18_34_sum
+
+pvalue
+```
+
+- This is a very small p-value and is effectively zero.
+    - The chance of winning the jackpot in the Powerball lottery after buying a single ticket is about 1 in 250 million.
+    - This Powerball jackpot win probability is a more than 10,000 times larger than the calculated p-value.
+    - If the null hypothesis of $\mu = 240$ were true, the chance of observing the data we did with $\bar{x} \approx 235.5$ or smaller would happen much less often than a specific person winning the Powerball jackpot with a single ticket.
+    - A much more plausible explanation is that the assumption $\mu = 240$ 
+
+- If the null hypothesis were true (and the sample were a random sample from the population of interest along with other assumptions), there is almost no chance of seeing what we observed or something more extreme.
+
+- Visualize the p-value
+
+```{r, fig.height = 3}
+gt(df = 3556, a = -10, b = 3) +
+  geom_t_fill(df = 3556, a = -10, b = tstat) +
+  geom_vline(xintercept = tstat, color = "red", linetype = "dashed") +
+  xlab("t") +
+  theme_minimal()
+```
+
+### Interpret
+
+There is overwhelming evidence that the mean running time for all eligible women aged 18-34 in the 2010 Boston Marathon who would have finished the race had they competed is less than four hours, or 240 minutes ($p < 10^{-13}$, one-sided t-test, $\text{df} = 3556$).
+
+
+## Comparisons
+
+### t.test()
+
+- Compare to the results using `t.test()`.
+
+```{r}
+## data as a vector
+x = women_18_34 %>% 
+  pull(Time)
+
+## t.test()
+## change the null hypothesis mean from 0 to 240
+## change the direction of the alternative hypothesis
+t.test(x, mu = 240, alternative = "less")
+```
+
+### Compare to a simulation
+
+- We also could have tested without the t distribution.
+- Use the sample mean as the test statistic
+- Take many samples of size 3557 with replacement from and adjusted sample, by adding a constant so that the mean is equal to 240 as in the null hypothesis
+    - When calculating a p-value, assume that the null hypothesis is true!
+    - This uses the adjusted sample as a proxy for the population
+    
+```{r}
+pop = x + mu0 - mean(x)
+
+## check
+mean(pop)
+
+## Use purrr to iterate
+B = 50000
+n = women_18_34_sum %>% pull(n)
+xbar = women_18_34_sum %>% pull(xbar)
+  
+  
+xbar_star = map_dbl(1:B,
+                     ~{
+                       return( mean(sample(pop, size = n, replace = TRUE)) )
+                     })
+
+xbar_star[1:10]
+
+## p-value = proportion <= observed xbar
+mean(xbar_star <= xbar)
+```
+
+
+```{r, fig.height = 3}
+## graphical visualization
+tibble(x = xbar_star) %>% 
+ggplot(aes(x = x)) +
+  geom_density() +
+  geom_vline(xintercept = xbar, color = "red",
+             linetype = "dashed") +
+  geom_hline(yintercept = 0) +
+  xlab("Sample mean") +
+  ggtitle("Simulation-based P-value") +
+  theme_minimal()
+```
+    
+
+
+## More about t distributions
+
+If $X_1, \ldots, X_n$ are a random sample from a normal population with mean $\mu$ and standard deviation $\sigma$,
+then
+
+$$
+Z = \frac{\bar{X} - \mu}{\sigma/\sqrt{n}}
+$$
+
+has a standard normal distribution.
+
+By the *Central Limit Theorem*, if $n$ is large enough, $\bar{X}$ will have an approximate normal distribution and hence $Z$ will be approximately standard normal, even if the distribution in the population is not normal.
+
+However, if we replace the denominator by a random value, replacing $\sigma$ with the sample standard deviation $S$, then the statistic has more randomness than $Z$ above.
+
+$$
+T = \frac{\bar{X} - \mu}{S/\sqrt{n}}
+$$
+
+We call this new distribution a t distribution with $n-1$ degrees of freedom.
+
+Unlike the normal distribution where all normal distributions have exactly the same shape, but may just differ in mean or standard deviation (center or scale), t distributions have different shapes for different sample sizes $n$.
+
+Each t distribution:
+
+- has a mean of 0
+- is symmetric with a bell shape
+- is defined by a single parameter called the *degrees of freedom*
+- in this setting, the degrees of freedom is $n-1$.
+- the standard deviation is $d/(d-2)$ for $d>2$, where $d$ is the degrees of freedom
+
+For very large $n$, the t distribution is approximately the standard normal distribution
+
+### Degrees of Freedom
+
+- Our data sample had $n = 3557$ pieces of information.
+- Our model required one parameter for the mean.
+- If we wanted to choose a set of data that matched the mean, we could make $n-1 = 3556$ free choices, but then the last choice would be forced in order to match the mean.
+- Thus, there are $n-1$ degrees of freedom.
+- In different settings, the number of degrees of freedom will have a different calculation.
+
+Note that $\frac{3556}{3556-2} = `r round(3556/3554, 4)`$, so in this example, computing the p-value from a standard normal distribution instead of a $t$ distribution would have not made much of a difference.
+
+## t distribution graphs
+
+- The following sequence of graphs show the t distribution for various degrees of freedom.
+- In each case we overlay a partially transparent red standard normal distribution for comparision.
+- For small degrees of freedom, the 0.01 and 0.99 quantiles of the t distribution are very far away from zero, unlike the standard normal curve.
+- In the graphs below, we set limits on the x axis from $-5$ to $5$ for each graph.
+- This scale fails to show the full extent of the tails of the t density curves for small degrees of freedom.
+
+```{r, fig.height = 40}
+degree_freedom = c(1:10, seq(20,100,20), 500, 1000)
+
+t_plots = degree_freedom %>% 
+  map(~{
+    gt(.x, color = "blue", a = -5, b = 5) +
+      geom_norm_density(color = "red", alpha = 0.5) +
+      scale_x_continuous(limits = c(-5, 5)) +
+      theme_minimal()
+  })
+
+ggarrange(plots = t_plots,
+          ncol = 1,
+          nrow = length(degree_freedom))
+```
+
+## Butterfat and Matched Samples
+
+- The butterfat content in milk is an important factor in determining its economic value
+and in how it is processed to form dairy products such as cheese, ice cream, and butter.
+- In an experiment,
+a company is interested in comparing the performances of two different labs
+which measure the butterfat content of milk.
+- Two separate samples were collected from 107 loads of milk,
+and one sample from each load was sent to one of two labs.
+- Butterfat content changes based on the identity of the cows,
+the time of milking, the time since the last milking, and other factors,
+so the percentage butterfat can be expected to vary from load to load,
+but should be consistent for samples taken from the same load
+as each load is properly agitated before sampling to promote mixing throughout the load.
+
+> How should this data be examined to compare the performances of the labs?
+
+### Explore the Data
+
+- Read the data, do numerical and graphical summaries
+- This is an example of a *paired sample*, as there is a single sample of $n=107$ loads, each of which is measured twice.
+
+```{r}
+butterfat_orig = read_table("../../data/butterfat.txt")
+spec(butterfat_orig)
+
+butterfat = butterfat_orig
+butterfat
+```
+
+#### Graphical Summaries
+
+- Let's make a scatter plot with the Lab 1 measurement on the x axis and Lab 2 on the y axis
+- We need to reshape the data to do this.
+
+```{r}
+butterfat_wide = butterfat %>% 
+  pivot_wider(names_from = lab, values_from = bfat)
+
+ggplot(butterfat_wide, aes(x = Lab1, y = Lab2)) +
+  geom_point() +
+  geom_abline(slope = 1, intercept = 0, color="blue") +
+  ggtitle("%Butterfat Measurements from Two Labs",
+          subtitle = "n = 107")
+```
+
+- There are four individual measurements that are **outliers**.
+- There are several possible explanations:
+    1. data may be recorded incorrectly;
+    2. the load may not have been agitated properly before sampling;
+    3. one or both labs occasionally makes a poor measurement;
+- With additional background information after speaking to the scientist who was responsible for data collection,
+we understand that the second explanation is most plausible,
+as some of the individuals that do the work of taking samples fail to properly agitate the milk,
+and as cream rises to the top,
+there is the possibility that two separate samples from the same load
+might differ considerably in percentage of butterfat.
+- As these observations are likely not telling us about the performance of the laboratories,
+but about how a small part of the data is collected,
+and our desired inference is about the laboratories,
+it is reasonable to discard the outliers.
+- Without this background information, it would be more difficult to justify the same decision.
+
+- We eliminate the four outliers by identifying the ids of the points where the absolute difference between the two measurements is the highest
+- Recall the use of `anti_join()` to filter out rows from a data set which match the key variables in rows from a different data set.
+
+```{r}
+outliers = butterfat_wide %>% 
+  mutate(adiff = abs(Lab1 - Lab2)) %>% 
+  slice_max(adiff, n = 4)
+
+butterfat = butterfat %>% 
+  anti_join(outliers, by = "id")
+
+butterfat_wide = butterfat_wide %>% 
+  anti_join(outliers, by = "id")
+```
+
+
+#### Re-examine the Graph
+
+```{r}
+ggplot(butterfat_wide, aes(x = Lab1, y = Lab2)) +
+  geom_point() +
+  geom_abline(slope = 1, intercept = 0) +
+  ggtitle("%Butterfat Measurements from Two Labs",
+          subtitle = "n = 103")
+```
+
+
+### Numerical Summaries
+
+- We summarize the two samples
+- But as this is paired data, we also summarize the differences
+
+```{r}
+butterfat_sum = butterfat %>% 
+  group_by(lab) %>% 
+  summarize(n = n(),
+            mean = mean(bfat),
+            sd = sd(bfat))
+
+butterfat_sum
+
+butterfat_wide = butterfat_wide %>% 
+  mutate(diff = Lab1 - Lab2)
+
+butterfat_wide_sum = butterfat_wide %>% 
+  summarize(n = n(),
+            mean = mean(diff),
+            sd = sd(diff),
+            r = cor(Lab1, Lab2))
+
+butterfat_wide_sum
+```
+
+- $r$ is the correlation coefficient which varies between $-1$ and $1$ and is a measure of the strength of a linear relationship between the two measurements
+- A value near 1 means the points are tightly clustered around a line with a positive slope.
+- More on this statistical summary next week.
+
+### Confidence Interval
+
+- We seek a confidence interval for the mean difference in butterfat measurements between the two labs.
+- We have a **single paired sample**
+
+#### Model
+
+- The population is all possible butterfat measurement differences made by the two labs on the same load of milk.
+- The sample is the 103 paired samples we have
+
+- Let $\Delta$ be the mean difference, Lab1 - Lab2, in the population.
+- We have data pairs $(x_i, y_i)$ for $i = 1,\ldots,103$.
+- Model the differences, $d_i = x_i - y_i$.
+
+$$
+D_i \sim F(\Delta, \sigma), \quad \text{for $i = 1, \ldots, n$}
+$$
+
+- $F$ is a generic distribution for the population of differences
+- $\Delta$ is the mean of this distribution
+- $\sigma$ is the standard deviation
+
+> We treat a paired sample the same as a single sample of a quantitative variable.
+
+#### Manual Calculations
+
+- The sample size is $n = 103$
+- The sample mean is
+$\bar{d} = `r round(butterfat_wide_sum %>% pull(mean), 3)`$
+- The sample standard deviation is
+$s = `r round(butterfat_wide_sum %>% pull(sd), 3)`$
+
+```{r}
+## Define 95% confidence interval
+ci_calc = butterfat_wide_sum %>% 
+  mutate(se = sd/sqrt(n), 
+         tmult = qt(0.975, n-1), 
+         me = tmult*se,
+         low = mean - me, 
+         high = mean + me)
+ci_calc %>% 
+  print(width = Inf)
+
+ci = ci_calc %>% 
+  select(low, high)
+
+ci
+```
+
+
+
+### Interpretations
+
+- A typical difference in the butterfat measurements from the same load between the two labs is about $-0.0037$ percent.
+- From above, the standard deviation within each lab among different loads is about 0.13 percent, which is much higher
+- We are confident that the mean difference in measurements between the two labs is quite small.
+
+> We are 95% confident that the mean difference in butterfat percentage measurements between the two labs (Lab 1 - Lab 2) is between $-0.008$ percent and $0.0006$ percent.
+
+- The plausible values at this level of confidence range from Lab 1 being lower than Lab 2 by $0.008$ percent to Lab 1 being higher than Lab 2 by $0.0006$ percent on average.
+
+- We are confident that any systemic differences in the accuracy between the two labs is very small and of no practical importance.
+
+
+### t.test() confirmation
+
+```{r}
+t.test(x = butterfat_wide$Lab1,
+       y = butterfat_wide$Lab2,
+       paired = TRUE)
+```
+
+
+
+### Hypothesis Test
+
+- Same populations and samples and model as above
+
+- Hypotheses
+
+$H_0: \Delta = 0$    
+$H_a: \Delta \neq 0$
+
+- Test Statistic
+
+$$
+T = \frac{ \bar{d} - 0 }{s/\sqrt{n}}
+$$
+
+```{r}
+tstat = butterfat_wide_sum %>% 
+  mutate(tstat = mean / (sd/sqrt(n))) %>% 
+  pull(tstat)
+
+tstat
+```
+
+- Sampling distribution is t with 102 degrees of freedom
+
+- Calculate and visualize the p-value
+
+```{r}
+pvalue = 2*pt(-abs(tstat), 102)
+pvalue
+
+pt(abs(tstat), 102) - pt(-abs(tstat), 102)
+```
+
+```{r, fig.height = 3}
+gt(102, a = -5, b = 5) +
+  geom_t_fill(102, a = -5, b = tstat) +
+  geom_t_fill(102, a = abs(tstat), b = 5) +
+  xlab("t statistic") +
+  ggtitle("P-value visualization",
+          subtitle = "102 df, t = -1.68") +
+  theme_minimal()
+
+```
+
+- Interpretation in context
+
+> The evidence is consistent with there being no difference in the mean butterfat measurements from the same loads of milk between the two labs ($p = 0.10$, two-sided t-test, $\text{df} = 102$).
+
+
+
+
+
+## Horned Lizards and Independent Samples
+
+- The horned lizard *Phrynosoma mcalli* has horns it uses for protection.
+- Researchers tested a hypothesis that longer horns are more protective than shorter horns.
+- A predator of these lizards is the loggerhead shrike,
+a bird that impales the lizards on thorns or barbed wire.
+- Researchers compared the horn lengths of 30 skewered lizards
+with 154 horned lizards that were living.
+- The average length of the skewered lizards was  21.99 mm
+and the average length of the living lizards was 24.28 mm.
+- This data set and background are from the textbook *The Analysis of Biological Data* by Michael Whitlock and Dolph Schluter
+
+> Is this evidence that longer horns are more protective?
+
+Here is a [YouTube video](https://www.youtube.com/watch?v=W_zfyAx_z_8) with background information.
+
+
+### Read the data
+
+```{r}
+lizards = read_table("../../data/lizards.txt")
+
+readr::spec(lizards)
+```
+
+
+### Explore
+
+- Here, we have two independent samples
+- Will make side-by-side box plots and overlay the actual points
+   - We set `coef=Inf` so that single points are not labeled as outliers
+   - As we plot all points individually, it is distracting and misleading to plot the outliers twice
+   
+```{r}
+ggplot(lizards, aes(x = survival, y = hornLength, fill = survival)) +
+  geom_boxplot(coef = Inf, alpha = 0.5) +
+  geom_point(position = position_jitter(width=0.3, height=0)) +
+  xlab("Survival") +
+  ylab("Horn length (mm)") +
+  ggtitle("Comparison of lizard horn lengths") +
+  theme_minimal() 
+```
+   
+- The visual evidence is that there is a mean difference between the horn lengths of these two groups of lizards.
+
+
+### Populations and Samples
+
+- The populations are the individual horn lizards who lived in the study area while it was conducted.
+    - Those killed by shrikes are one population
+    - Those alive are another population
+- The samples are the lizards in the data set
+
+### Model
+
+- We have two independent samples
+- Treat the data as randomly sampled from larger populations.
+
+$X_i \sim F_1(\mu_1, \sigma_1), \quad i = 1, \ldots, n_1$    
+$Y_i \sim F_2(\mu_2, \sigma_2), \quad i = 1, \ldots, n_2$    
+
+
+### Estimates from Summary Data
+
+```{r}
+lizards_sum = lizards %>% 
+  group_by(survival) %>% 
+  summarize(n = n(),
+            mean = mean(hornLength),
+            sd = sd(hornLength))
+
+lizards_sum
+```
+
+
+> Find a 95% Confidence Interval for $\mu_1 - \mu_2$
+
+```{r}
+## use t.test()
+x = lizards %>% 
+  filter(survival == "Living") %>% 
+  pull(hornLength)
+
+y = lizards %>% 
+  filter(survival == "Killed") %>% 
+  pull(hornLength)
+
+t.test(x, y)
+
+
+dof = 40.372 #t.test(x, y)$parameter
+mean_x=mean(x)
+s_x = sd(x)
+n_x = length(x)
+
+mean_y = mean(y)
+s_y = sd(y) 
+n_y = length(y)
+
+ci = mean_x - mean_y + c(-1,1)*qt(0.975, dof)*sqrt(s_x^2/n_x + s_y^2/n_y)
+ci
+```
+
+Interpretation:
+
+> We are 95% confident that the mean length of horns among living horn lizards is between `r round(ci[1],2)` and `r round(ci[2],2)` mm longer than the mean length of horns among horned lizards killed by the loggerhead shrike.
+
+
+
+- The default method in `t.test()` does not assume that $\sigma_1 = \sigma_2$.
+- The theory is then based on the test statistic
+
+$$
+t = \frac{\bar{X} - \bar{Y}}{\sqrt{\frac{s_x^2}{n_x} + \frac{s_y^2}{n_y}}}
+$$
+
+- Under ideal sampling assumptions (independence and normal populations), this distribution **does not** have an exact t distribution.
+- However, a result from mathematical statistics (see below) says that it has an approximate t distribution where the degrees of freedom may be estimated from the data.
+- The formula is a bit complex, but it will always fall between the minimum of the two single-sample degrees of freedom, $n_x - 1$ and $n_y - 1$
+and their sum $n_x + n_y - 2$
+    - If:
+        - the sample sizes are not too different
+        - and the sample standard deviations are not too different
+    - then, the estimated degrees of freedom is near the sum $n_x + n_y - 2$.
+    
+- If one is willing to assume that $\sigma_1 = \sigma_2$, then the data from both samples may be pooled together to estimate a common value of $\sigma$.
+- Under this stronger assumption, the degrees of freedom is exactly $n_x + n_y - 2$.
+- Here is the pooled standard deviation calculation.
+    - This is the square root of the weighted average of the sample variances, weighted by their degrees of freedom.
+
+$$
+s_p = \sqrt{ \frac{n_x - 1}{n_x + n_y - 2}s_x^2 + 
+             \frac{n_y - 1}{n_x + n_y - 2}s_y^2 }
+$$
+
+Using the equation for the sample standard deviation, this evaluates to
+
+$$
+s_p = \sqrt{ \frac{\sum_{i=1}^{n_x} (x_i - \bar{x})^2 +
+                   \sum_{i=1}^{n_y} (y_i - \bar{y})^2}
+                   {n_x + n_y - 2} }
+$$
+
+which is the total sum of all residuals over the combined degrees of freedom.
+
+- We can do this calculation with `t.test()` too.
+
+```{r}
+t.test(x, y, var.equal = TRUE) #assumes equal variances
+ci #does not assume equal variances
+```
+
+### Welch Approximate Degrees of Freedom
+
+The approximate degrees of freedom $\nu$ has this formula.
+
+$$
+\nu = \frac{\left( \frac{s_x^2}{n_x} + \frac{s_y^2}{n_y}\right)^2}{\frac{s_x^4}{n_x^2(n_x - 1)} + \frac{s_y^4}{n_y^2(n_y - 1)} }
+$$
+
+```{r}
+welch_df = function(x, y)
+{
+  sx = sd(x)
+  sy = sd(y)
+  nx = length(x)
+  ny = length(y)
+  
+  df = (sx^2/nx + sy^2/ny)^2 / (sx^4/(nx^2*(nx-1)) + sy^4/(ny^2*(ny-1)))
+  
+  return ( df )
+}
+```
+
+## Hypothesis Test
+
+- State Hypotheses
+$H_0: \mu_1 = \mu_2$    
+$H_a: \mu_1 \neq \mu_2$
+
+- Test statistic
+$t = \frac{\bar{x} - \bar{y}}{\text{SE}(\bar{x} - \bar{y})}$
+
+```{r}
+t.test(x,y)
+```
+
+```{r}
+## manual
+dof = 40.372 #t.test(x, y)$parameter
+n_x = length(x)
+n_y = length(y)
+se = sqrt(var(x)/n_x + var(y)/n_y)
+tstat = (mean(x) - mean(y)) / se
+tstat
+pvalue = 2*pt(-abs(tstat), dof) #2P(T < -4.26..)
+pvalue
+t.test(x,y)$p.value
+```
+
+- Interpretation
+
+> There is very strong evidence that the mean horn length of living horned lizards is larger than the mean horn length of lizards killed by the loggerhead shrike in the area of the study ($p = 0.00012$, two-sided t-test, unequal variances).
+
+## Boston Marathon Revisited
+
+- If time remains, explore inference to address the following question:
+
+> For men aged 35-39, are there differences in the mean time to complete the Boston Marathon between 2010 and 2011?
+
+- First, construct a 95% confidence interval for the difference.
+- Second, test the hypothesis
+
+> Solve in Class
+
+
+
+
+
+

@@ -1,0 +1,355 @@
+---
+title: "COMPLETE LAKE MENDOTA  ANALYSIS"
+output: html_document
+author: vardaan kapoor
+---
+
+- notes associated with UNIVERSITY OF WISCONSIN MADISON
+```{r setup, include = FALSE}
+##   when the tidyverse library is loaded, messages are generated that we do not want to include in the knitted document
+## setting the chunk argument include = FALSE means this chunk is executed, but the text in the chunk and any output do not appear in the knitted document
+
+## Hash tags allow you to comment-out the code; you can use multiple depending on your preference but only one is needed.
+## Any characters after a hash tag on a line are comments.
+
+## 'knitr' is the package that turns R Markdown into a document
+## The following command sets some options for this R Markdown file
+  ##   echo = TRUE means that the code in R chunks will appear the knitted document
+  ##   message = FALSE and warning = FALSE mean that messages and warnings do not appear in the final document
+  ##   error = TRUE means the document will continue to knit in the presence of errors while knitting
+  ##   fig.height = 4 means figures are 4 inches tall unless otherwise specified
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      error = TRUE, fig.height = 4)
+
+## The `library()' function loads in a package; the package must already be installed.
+## `tidyverse' is the name of a collection of more than a dozen packages designed to work with each other.
+## The library(tidyverse) command loads eight core packages, including ggplot2
+## Others we often use, such as lubridate, need to be loaded separately
+## The 'lubridate' package has useful functions for dates.
+library(tidyverse)
+library(lubridate)
+```
+
+```{r read-data}
+## `mendota` is a new object. 
+## The `=` assigns the loaded data set to the object name `mendota`.
+## You will often see `<-' instead as the assignment operator.
+##   I use `=` almost all the time, but `<-` is more common.
+
+## read_csv() is a function in the tidyverse for reading in .csv files.
+## There is a base R function named read.csv(). Use read_csv() instead.
+## If you use read.csv(), character variables get changed to factors
+##   and variable names might get changed.
+
+## The argument to read_csv() is a path to the file with the data
+## The '..' means go up a directory
+## Use a '/' after a directory
+
+## The result of the code below is to create a data frame named mendota
+##   by reading in the data in the file.
+### COURSE/data/ contains the data file
+### COURSE/lectures/unit2-ggplot2/ is your working directory
+
+mendota = read_csv("../../data/lake-mendota-winters-2022.csv")
+```
+
+```{r}
+spec(mendota)
+```
+
+```{r histogram}
+ggplot(data = mendota, mapping = aes(x = duration)) +
+  geom_histogram()
+```
+
+```{r histogram-fancy}
+ggplot(mendota, aes(x = duration)) +
+  geom_histogram(fill = "hotpink",
+                 color = "black",
+                 binwidth = 7,
+                 boundary = 0) +
+  xlab("Total days frozen") +
+  ylab("Counts") +
+  ggtitle("Lake Mendota Freeze Durations, 1855-2022")
+```
+
+- When selecting bin edges, I often aim to avoid having actual data fall exactly on a bin boundary with prudent choices    
+    
+```{r}
+ggplot(mendota, aes(x = duration)) +
+  geom_histogram(fill = "hotpink",
+                 color = "black",
+                 binwidth = 7,
+                 center = 0) +
+  xlab("Total days frozen") +
+  ylab("Counts") +
+  ggtitle("Lake Mendota Freeze Durations, 1855-2022")
+```
+
+```{r density}
+ggplot(mendota) +
+  geom_density(aes(x=duration),
+               fill="hotpink",
+               color="black") +
+  xlab("Total days frozen") +
+  ylab("Density") +
+  ggtitle("Lake Mendota Freeze Durations, 1855-2022")
+```
+
+##### Interpreting a Density Plot
+
+- A density plot provides information about what proportion of the observations are in each interval, approximately
+- For example, the area in the previous plot to the left of 80 looks to be, maybe, about 10% of the total.
+- I add a vertical line at 80 to help visualize this.
+
+```{r}
+ggplot(mendota) +
+  geom_density(aes(x=duration),
+               fill="hotpink",
+               color="black") +
+  geom_vline(xintercept = 80, linetype = "dashed") +
+  xlab("Total days frozen") +
+  ylab("Density") +
+  ggtitle("Lake Mendota Freeze Durations, 1855-2022")
+```
+
+```{r}
+ggplot(mendota, aes(y = duration)) +
+  geom_boxplot()
+```
+
+```{r}
+ggplot(mendota, aes(x = duration)) +
+  geom_boxplot()
+```
+
+```{r}
+ggplot(mendota, aes(x = as.character(decade), y = duration)) +
+  geom_boxplot(fill = "papayawhip",
+               color = "blue") +
+  ylab("Total days closed by ice") +
+  xlab("Decade") +
+  ggtitle("Lake Mendota Freeze Durations, 1855-2022")
+```
+
+## Lake Mendota Graphs -- days frozen vs. time
+
+- We wish to create a graph to examine the relationship between the duration which Lake Mendota is frozen versus time
+- We may expect there to be a decrease over time as a result of global warming causing the average temperature in Madison to be trending warmer in the winter.
+
+### Question 1
+
+> How do the total number of days that Lake Mendota is closed with ice vary over time?
+
+```{r}
+ggplot(mendota, aes(x = year1, y = duration)) +
+  geom_point()
+```
+
+##### Observations
+
+- We can kind of see a decreasing pattern over time, but it is difficult to trace the year-to-year changes and difficult to see the general pattern as clearly as possible separate from the year-to-year noise
+- When one variable is time, it is often useful to use a "trace plot" instead of a scatter plot by changing the geometry from plotting individual points (using `geom_point()`) to line segments which connect consecutive points (using `geom_line()`).
+
+```{r}
+ggplot(mendota, aes(x = year1, y = duration)) +
+  geom_line()
+```
+
+- This graph makes it easier to see that there is a decreasing trend,
+but that the actual pattern of decrease is quite noisy with substantial year-to-year variation.
+- Another geometry, `geom_smooth()`, greatly reduces the noise and replaces the actual data values with a smooth curve.
+
+```{r}
+ggplot(mendota, aes(x = year1, y = duration)) +
+  geom_smooth()
+```
+
+
+```{r}
+ggplot(mendota, aes(x = year1, y = duration)) +
+  geom_smooth(se = FALSE)
+```
+
+- After suppressing the year-to-year noise, we see a summarized pattern where the duration with which Lake Mendota has remained closed by ice in a typical year has decreased from over 120 days in 1850 to under 80 days at present.
+  - There was a steady decline from 1850 to about 1920, followed by about 30--40 years of with a slight increase on average, followed by a decline at an even faster rate from about 1960 to the present.
+  - Perhaps the rate of decrease is becoming steeper.
+  
+  ```{r plot}
+## note setting the aesthetics here in ggplot()
+## otherwise, we would need to set the in geom_point(), geom_line(), and geom_smooth() each separately
+ggplot(mendota, aes(x=year1, y=duration)) +
+  geom_point() +
+  geom_line() +
+  geom_smooth(se=FALSE) +
+  xlab("Year") +
+  ylab("Total Days Frozen") +
+  ggtitle("Lake Mendota Freeze Durations, 1855-2022")
+```
+
+### Observations
+
+- There does appear to be a decrease in the freeze durations over time
+- Informally, we might interpret the blue curve as a description of what the climate is doing
+  - ignoring year-to-year fluctuations, the typical average duration for Lake Mendota to freeze over the winter has decreased from about 120 days (or four months) in the mid 1850s to under 80 days (about 11 weeks) currently.
+- The variation of the points around the blue curve may be interpreted as random "noise" caused by differences in the weather at key parts of the fall and winter seasons from year to year. 
+
+### Question 2
+
+> In a typical year, how much does the actual duration for which Lake Mendota is frozen (the surface is at least 50% covered by ice) vary from its predicted value? (How far apart are the black points and the blue curve, typically, in a given year)?
+
+```{r, echo = FALSE}
+## Fitting a model using code beyond the scope of this course
+## The function `geom_smooth()` uses `loess()` under the hood
+fit = loess(duration ~ year1, data = mendota)
+
+## Add the values to the mendota data set
+mendota = mendota %>% 
+  mutate(fitted = fit$fitted,
+         residual = fit$residuals)
+```
+
+```{r}
+print(mendota, width = Inf)
+```
+
+- In the first recorded winter of 1855--56, Lake Mendota was closed by ice for 118 days, but the trend curve in the same winter predicted 125 days.
+The residual is the difference, $-7 = 118 - 125$.
+
+- Let's create a density plot to visualize the distribution of all of the residuals.
+
+```{r}
+ggplot(mendota, aes(x = residual)) +
+  geom_density(fill = "papayawhip")
+```
+
+- From this plot, we see that the distribution of year to year annual variation around the trend curve is approximately bell-shaped and centered at zero, but there is some slight left skewness (the left tail is bigger than the right tail).
+
+> It is more common for a winter where the actual duration for which Lake Mendota is closed by ice is extremely lower than typical than a winter where it is abnormally longer than typical.
+
+- The scale of the plot indicates that it is not at all unusual for the actual duration Lake Mendota is closed by ice to differ from the trend line by about 2 to 3 weeks in either direction.
+- Most of the area under the curve is between about $-21$ days and $+21$ days, but there are a fair number of years which exceed these typical values.
+
+- We could also examine the distribution of the residuals around the smooth curve with a box plot.
+
+```{r}
+ggplot(mendota, aes(x = residual)) +
+  geom_boxplot()
+```
+
+- It appears that six times in the past 167 winters, the actual duration that Lake Mendota was closed by ice was four weeks or more shorter than typical and just once did the duration exceed what was predicted by more than four weeks.
+- In about half the winters,
+the duration is within ten days of typical.
+
+```{r}
+ggplot(mendota, aes(x = residual)) +
+  geom_density(fill = "papayawhip") +
+  xlab("Residuals (days)") +
+  ylab("") +
+  ggtitle("Density Plot of Residuals from geom_smooth()",
+          subtitle = "Lake Mendota Freeze data, 1855-2022")
+```
+
+### Question 3
+
+> When in the winter does Lake Mendota typically close with ice the first time?
+
+```{r, echo = FALSE}
+mendota = mendota %>% 
+  mutate(ff_after_june_30 = as.integer(first_freeze -
+                             ymd(str_c(year1,"-06-30"))),
+         ff_period = case_when(
+           ff_after_june_30 <= 153 ~ "Nov 16-30",
+           ff_after_june_30 <= 168 ~ "Dec 1-15",
+           ff_after_june_30 <= 184 ~ "Dec 16-31",
+           ff_after_june_30 <= 199 ~ "Jan 1-15",
+           ff_after_june_30 <= 215 ~ "Jan 16-30")) %>% 
+  mutate(ff_period = reorder(ff_period, ff_after_june_30))
+
+mendota_sum = mendota %>% 
+  count(ff_period)
+```
+
+- Here are the first few rows of selected columns of each data set.
+
+```{r, echo = FALSE}
+mendota %>% 
+  select(winter, duration, first_freeze, ff_period) %>% 
+  slice_head(n=5)
+
+mendota_sum
+```
+
+```{r}
+ggplot(mendota, aes(x = ff_period)) +
+  geom_bar()
+```
+
+- We can add layers to improve the appearance.
+
+```{r}
+ggplot(mendota, aes(x = ff_period)) +
+  geom_bar(color = "black", fill = "blue") +
+  xlab("Date of the First Freeze") +
+  ylab("Count") +
+  ggtitle("Lake Mendota First Freeze Dates",
+          subtitle = "1855-2022")
+```
+
+#### geom_col()
+
+- Here a table with the summary counts
+
+```{r}
+mendota_sum
+```
+
+- Use `geom_col()` and set both `x` and `y` aesthetics.
+
+```{r}
+ggplot(mendota_sum, aes(x = ff_period, y = n)) +
+  geom_col()
+```
+
+- Again, make the graph better for presentation.
+
+```{r}
+ggplot(mendota_sum, aes(x = ff_period, y = n)) +
+  geom_col(color = "black", fill = "blue") +
+  xlab("Date of the First Freeze") +
+  ylab("Count") +
+  ggtitle("Lake Mendota First Freeze Dates",
+          subtitle = "1855-2022")
+```
+
+
+```{r, echo = FALSE}
+mendota = mendota %>% 
+  mutate(period50 = case_when(
+    year1 < 1901 ~ "1855-1900",
+    year1 < 1951 ~ "1901-1950",
+    year1 < 2001 ~ "1951-2000",
+    TRUE ~ "2001-2022"))
+```
+
+
+```{r}
+ggplot(mendota, aes(x = ff_period)) +
+  geom_bar(color = "black", fill = "blue") +
+  xlab("Date of the First Freeze") +
+  ylab("Count") +
+  ggtitle("Lake Mendota First Freeze Dates",
+          subtitle = "1855-2022") +
+  facet_wrap(vars(period50))
+```
+
+```{r, echo = FALSE}
+mendota_sum2 = mendota %>% 
+  count(period50, ff_period) %>% 
+  group_by(period50) %>% 
+  mutate(p = n / sum(n),
+         pct = 100*p)
+
+mendota_sum2 %>% 
+  print(n = Inf)
+```

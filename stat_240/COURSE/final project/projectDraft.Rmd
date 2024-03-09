@@ -1,0 +1,240 @@
+---
+title: "Project Draft"
+output: html_document
+date: "2023-04-17"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
+library(tidyverse)
+source("../scripts/viridis.R")
+source("../scripts/ggprob.R")
+```
+## Data
+
+The data set `Most-Recent-Cohorts-Institution.csv` was collected to form Institution-level data files to form aggregate data for each institution. This data includes, location, enrollment, student aid, and costs. This data was collected to just help get an idea for the U.S department of Education to get a general idea about all of the universities in the United States.
+
+```{r}
+Colleges = read_csv("../data/Most-Recent-Cohorts-Institution.csv")
+df = Colleges %>%
+  select(INSTNM, ADM_RATE, LATITUDE, LONGITUDE, UGDS_BLACK, UGDS_WHITE, UGDS_HISP, UGDS_ASIAN, UGDS_MEN, UGDS_WOMEN,ACTCM25, ACTCMMID, ACTCM75, SATVR25, SATVRMID, SATVR75, STABBR) %>%
+  drop_na() %>%
+  filter(ADM_RATE != "NULL" & LATITUDE != "NULL"& LONGITUDE != "NULL"& UGDS_ASIAN != "NULL", UGDS_WHITE != "NULL", UGDS_WOMEN != "NULL", ACTCMMID != "NULL", SATVR25 != "NULL", SATVR75 != "NULL")%>%
+  rename(c("university" = INSTNM, "adm_rate" = ADM_RATE,"lat" = LATITUDE, "long" =  LONGITUDE, "asian" = UGDS_ASIAN, "white" = UGDS_WHITE, "black"= UGDS_BLACK, "hispanic"= UGDS_HISP, "male"= UGDS_MEN, "female"= UGDS_WOMEN, "state" = STABBR, "ACT25%" = ACTCM25,"ACT75%" = ACTCM75, "ACTMID%" = ACTCMMID, "SAT25%" = SATVR25,"SAT75%" = SATVR75, "SATMID%" = SATVRMID))%>%
+  mutate(location = case_when(
+        as.numeric(long) >=-90 ~ "East Coast",
+    as.numeric(long) <=-90 ~ "West Coast"
+  ))%>%
+  mutate(
+      adm_rate = as.numeric(adm_rate),
+      lat = as.numeric(lat),
+      long = as.numeric(long),
+    black = as.numeric(black),
+    white = as.numeric(white),
+    hispanic = as.numeric(hispanic),
+    asian = as.numeric(asian),
+    male = as.numeric(male),
+    female = as.numeric(female)
+  )
+
+
+
+df
+
+
+```
+
+
+
+## Introduction:
+All the students here have come from various backgrounds but still ended up at the University of Wisconsin-Madison. We have decided to find correlations between race, gender, and location to see how these factors affect the chances of  admission at each university in the United States.The questions we have chosen to create an analysis on is Does the acceptance rate of a school depend on location (east coast/west coast)? How does race and gender differ in admission of east coast and west coast schools? Are SAT and ACT cutoffs of schools similar based on location? Or is it based on the school’s merit?
+
+
+
+## Background:
+
+This data was collected to form Institution-level data files to form aggregate data for each institution. This data includes, location which is either east coast or west coast, acceptance rate of the certain university, Ethnicity, gender for the university, and ACT and SAT average acceptance rate. This data was collected to just help get an idea for the U.S department of Education to get a general idea about all of the universities in the United States. 
+
+
+Source: 
+http://api.data.gov/ed/collegescorecard/
+
+We are splitting the country in half into East coast and West coast based on the longitude of the universities. This is the case based on how we will be comparing the universities on the west coast to the universities on the east coast. We will look at Ethnicity and gender specifically and compare to see how the East coast and the West coast schools compare. One unusual factor that could have a major impact on the data is Covid in 2020. This is the case because acceptance rates could be different and many of the other variables could be affected based on this outside factor. Where we are splitting the data to be east coast or west coast could also have an impact on the data and the interpretation of the results. This is the case because everyone could have a different interpretation of being on the East coast or West coast. 
+We intend to answer the questions of Does the acceptance rate get affected based on location of schools? How does race and gender differ in admission of east coast and west coast schools? Are SAT and ACT cutoffs of schools similar based on location? Or is it based on the school’s merit?
+
+
+## Analysis
+>Does the acceptance rate of a school depend on location (east coast/west coast)?
+
+```{r}
+q1 = df %>%
+  group_by(location) %>%
+  mutate(adm_rate = as.numeric(adm_rate)) %>%
+  summarize(
+    avg_adm_rate = mean(adm_rate)
+  )
+
+q1
+
+ggplot(q1, aes(x = location, y = avg_adm_rate)) +
+  geom_col()+
+  xlab("Locations")+
+  ylab("Averge Admission Rate %")+
+  ggtitle("Averege Addmission Rate Based on Location", subtitle = "East Coast/West Coast")
+
+
+```
+
+> The graphs are very similar indicating the average acceptance rates do not differ by a wide variety based on location.
+
+
+
+>How does race and gender differ in admission of east coast and west coast schools?
+
+```{r}
+q2 = df %>%
+  group_by(location) %>%
+  summarize(
+    avg_white = mean(white),
+    avg_black = mean(black),
+    avg_hispanic = mean(hispanic),
+    avg_asian = mean(asian)
+  )
+
+q2a = df %>%
+  filter(location == "East Coast") %>%
+  summarize(
+    avg_white = mean(white),
+    avg_black = mean(black),
+    avg_hispanic = mean(hispanic),
+    avg_asian = mean(asian)
+  )
+
+q2b = df %>%
+  filter(location == "West Coast") %>%
+  summarize(
+    avg_white = mean(white),
+    avg_black = mean(black),
+    avg_hispanic = mean(hispanic),
+    avg_asian = mean(asian)
+  )
+
+q2a = q2a %>%
+  pivot_longer(cols=c('avg_white', 'avg_black', 'avg_hispanic', 'avg_asian'),
+                    names_to='race',
+                    values_to='avg_east_race')
+
+q2b = q2b %>%
+  pivot_longer(cols=c('avg_white', 'avg_black', 'avg_hispanic', 'avg_asian'),
+                    names_to='race',
+                    values_to='avg_west_race')
+
+q2 = q2a %>% inner_join(q2b)
+
+df_long <- q2 %>% pivot_longer(cols = c(avg_east_race, avg_west_race), names_to = "region", values_to = "avg_race")
+
+ggplot(df_long, aes(x = race, y = avg_race, fill = region)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Average Race in Universitys by East Coast vs West Coast", x = "Race", y = "Average Race") 
+q2
+
+```
+
+> Based on the data we can determine that the averege asian population is about equal for both east coast and west coast. We can also see that the East coast schools have a higher black population and it is flipped with the hispanic population in schools being higher in the west coast. The overall factor is that the majoridy in the east coast and west coast is white population. We are finding the means of all of the ethnicitys based on location and then creating a bar graph to best display this data.  
+
+
+Gender:
+```{r}
+q3a = df %>%
+  filter(location == "East Coast") %>%
+  summarize(
+    avg_male = mean(male),
+    avg_female = mean(female)
+  )
+
+q3b = df %>%
+  filter(location == "West Coast") %>%
+  summarize(
+    avg_male = mean(male),
+    avg_female = mean(female)
+  )
+
+q3a = q3a %>%
+  pivot_longer(cols=c('avg_male', 'avg_female'),
+                    names_to='gender',
+                    values_to='avg_east_gender')
+
+q3b = q3b %>%
+  pivot_longer(cols=c('avg_male', 'avg_female'),
+                    names_to='gender',
+                    values_to='avg_west_gender')
+
+q3 = q3a %>% inner_join(q3b)
+df_long3 <- q3 %>% pivot_longer(cols = c(avg_east_gender, avg_west_gender), names_to = "region", values_to = "avg_gender")
+
+
+ggplot(df_long3, aes(x = gender, y = avg_gender, fill = region)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Average Gender in Universitys by East Coast vs West Coast", x = "Gender", y = "Average Gender") 
+q3
+
+
+
+```
+> Based on the data we can determine that in both east and west coast there are more female on averge in universitys. This being the case we can also see that the females in both the east and west coast are very similar in percentage as well. We are finding the means of both of the genders based on location and then creating a bar graph to best display this data.  
+
+
+```{r question 7}
+df
+act = df %>%
+  group_by(location) %>%
+  summarize(
+    actLower = mean(`ACT25%`),
+    actUpper = mean(`ACT75%`),
+    actMid = mean(`ACTMID%`)
+    )
+act
+
+q7a = df %>%
+  filter(location == "East Coast") %>%
+  summarize(
+    actLower = mean(`ACT25%`),
+    actUpper = mean(`ACT75%`),
+    actMid = mean(`ACTMID%`)
+  )
+
+```
+```{r question}
+df
+asian_total=cor(df$adm_rate,df$asian)
+asian_total
+ggplot(df,aes(x=asian,adm_rate))+geom_point()+geom_smooth()
+df_seperated_east=df %>% filter(location=="East Coast")
+df_seperated_west=df %>% filter(location=="West Coast")
+asian_west=cor(df_seperated_west$adm_rate,df_seperated_west$asian)
+asian_east=cor(df_seperated_east$adm_rate,df_seperated_east$asian)
+ggplot(df_seperated_east,aes(x=asian,adm_rate))+geom_point()+geom_smooth(se=FALSE)
+ggplot(df_seperated_west,aes(x=asian,adm_rate))+geom_point()+geom_smooth(se=FALSE)
+
+white_total=cor(df$adm_rate,df$white)
+white_total
+ggplot(df,aes(x=white,adm_rate))+geom_point()+geom_smooth()
+df_seperated_east2=df %>% filter(location=="East Coast")
+df_seperated_west2=df %>% filter(location=="West Coast")
+white_west=cor(df_seperated_west2$adm_rate,df_seperated_west2$white)
+white_east=cor(df_seperated_east2$adm_rate,df_seperated_east2$white)
+ggplot(df_seperated_east2,aes(x=white,adm_rate))+geom_point()+geom_smooth(se=FALSE)
+ggplot(df_seperated_west2,aes(x=white,adm_rate))+geom_point()+geom_smooth(se=FALSE)
+
+
+t.test(df_seperated_west2$adm_rate,df_seperated_west2$white)
+
+t.test(df$adm_rate,df$white)
+a=chisq.test(table(df$adm_rate,df$white))
+t.test(df$adm_rate,df$white)
+```
+```{r}
+t.test(df_seperated_east2$adm_rate,df_seperated_east2$white)
+
+```
+## Discussion

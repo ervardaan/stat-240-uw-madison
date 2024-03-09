@@ -1,0 +1,1641 @@
+---
+title: "Introduction to Regression"
+output: html_document
+---
+This R Markdown document includes contributions by Professor Jessi Kehe.
+
+\renewcommand{\prob}{\mathsf{P}}
+\newcommand{\E}{\mathsf{E}}
+\newcommand{\Var}{\mathsf{Var}}
+\newcommand{\SD}{\mathsf{SD}}
+\newcommand{\SE}{\mathsf{SE}}
+
+### Setup details
+
+- This lecture use the following scripts, assumed to be in your course scripts directory.
+    - `COURSE/scripts/viridis.R`
+    
+- You also need the following data sets
+    - `COURSE/data/lions.csv`
+    - `COURSE/data/height.txt`
+    - `COURSE/data/exoplanets-clean-through-2022.csv`
+
+- You will need the package **tidyverse** for these lectures.  
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      error = TRUE, fig.height = 4)
+library(tidyverse)
+#library(kableExtra)
+
+source("../../scripts/viridis.R")
+#source("../../scripts/ggprob.R")
+
+theme_set(theme_minimal())
+```
+
+
+# Introduction to Correlation
+
+## Lion Ages
+
+- Biologists are interested in examining the relationship between the age of lions and the proportion of their nose that is black.
+- Data are collected from a group of lions whose ages are known.
+- The hope is to develop a model to predict the age of lions with unknown age from something that can be measured from a distance with minimal interference from an image of the lion's face.
+- Experts use multiple characteristics in addition to nose color, such as mane length, teeth wear, and facial scarring.
+
+![Image of Lion Noses from https://www.panthera.org/blog/2016/08/17/how-age-lion](https://i.imgur.com/3AQL34H.png)
+
+### Data
+
+```{r}
+lions = read_csv("../../data/lions.csv") %>% 
+  rename(black = proportion.black)
+```
+
+### Numerical Summary
+
+- Calculate:
+    - the number of cases;
+    - means and standard deviations of each variable;
+    - the correlation (more on this below)
+
+```{r}
+## first few rows
+head(lions)
+
+lions_sum = lions %>% 
+  summarize(across(everything(), list(mean = mean, sd = sd)),
+            n = n(),
+            r = cor(age, black)) %>% 
+  relocate(n)
+
+lions_sum            
+```
+
+
+
+### Graphical Summary
+
+- We use a scatter plot to show the relationship between these variables
+- Add a simple linear regression line with `geom_smooth()`.
+
+```{r}
+ggplot(lions, aes(x = age, y = black)) +
+  geom_point() +
+  xlab("Age (years)") +
+  ylab("Percentage Black") +
+  scale_y_continuous(labels = scales::percent) +
+  ggtitle("Ages and Lion Nose Color") +
+  geom_smooth(se = FALSE, method = "lm") +
+  theme_bw() +
+  theme(text = element_text(size = 20)) 
+```
+
+- We see a positive relationship between `age` and the proportion of the nose which is black.
+    - As lions get older, the percentage of the nose that is black tends to increase
+    - There is a fair amount of variability in this relationship, though
+- How can we measure the strength of a linear relationship?
+
+
+
+
+## The Correlation Coefficient r
+
+- The *correlation coefficient* `r` is a measure of the strength of a linear relationship between two quantitative variables.
+- The formula is
+
+$$
+r = \mathsf{Corr}(x,y) = \frac{1}{n-1}\sum_{i=1}^n
+\left(\frac{x_i - \bar{x}}{s_x} \right)
+\left(\frac{y_i - \bar{y}}{s_y} \right)
+$$
+
+- From the equation, note that:
+    - $\mathsf{Corr}(x,y) = \mathsf{Corr}(y,x)$
+        - The order of the variables does not matter
+    - The individual values of $x$ and $y$ are standardized by subtracting the mean and dividing by the standard deviation (z scores)
+    - $r$ is (nearly) the average of the product of these standardized values
+    - $r$ is unitless
+        - Any units in $x$ and $y$ are eliminated in standardization
+        - Changing the scale of measurement of $x$ and/or $y$ does not change $r$
+    - For cases where $x$ and $y$ are both greater than their mean or less than their mean, the sum gets bigger as the product is positive
+    - For cases where one of $x$ and $y$ is greater than its mean and the other is less than it mean, the product is negative and the sum is made smaller
+- Not obvious from the equation, but provable with a mathematical argument is that $-1 \le r \le 1$.
+- $r = 1$ if and only if the points fall exactly on a line with a positive slope
+- $r = -1$ if and only if the points fall exactly on a line with a negative slope
+
+#### Alternative Formula
+
+- It is a very minor point, but we used a different estimate of the standard deviation, $\hat{\sigma} = \sqrt{\sum_i(x_i - \bar{x})^2/n}$, which uses $n$ instead of the $n-1$ in the formula for $s$, then we could say that $r$ is exactly the mean of the product of the z-scores of the two variables.
+
+$$
+r = \mathsf{Corr}(x,y) = \frac{1}{n}\sum_{i=1}^n
+\left(\frac{x_i - \bar{x}}{\hat{\sigma}_x} \right)
+\left(\frac{y_i - \bar{y}}{\hat{\sigma}_y} \right)
+$$
+
+        
+```{r}
+ggplot(lions, aes(x = age, y = black)) +
+  geom_point() +
+  xlab("Age (years)") +
+  ylab("Percentage Black") +
+  scale_y_continuous(labels = scales::percent) +
+  ggtitle("Ages and Lion Nose Color",
+          subtitle = "Red dashed lines at variable means") +
+  geom_vline(xintercept = lions_sum$age_mean, color = "red", linetype = "dashed") +
+  geom_hline(yintercept = lions_sum$black_mean, color = "red", linetype = "dashed") +
+  theme_bw() +
+  theme(text = element_text(size = 20)) 
+```
+
+- Almost all points are in the upper right or lower left, so $r > 0$.
+- The points are not on exactly straight line with a positive slope, so $r < 1$.
+
+### Calculation
+
+- The built-in R function `cor()` calculate the correlation coefficient.
+
+```{r}
+x = lions %>% pull(age)
+y = lions %>% pull(black)
+cor(x,y)
+```
+
+- Demonstrate with a manual calculation
+
+```{r}
+lions_calc = lions %>% 
+  mutate(z_age = (age - mean(age))/sd(age),
+         z_black = (black - mean(black))/sd(black),
+         prod = z_age * z_black)
+
+lions_calc %>% 
+  print(n = Inf)
+
+lions_calc %>% 
+  summarize(r = sum(prod) / (n() - 1)) %>% 
+  pull(r)
+```
+
+
+
+
+### Fake Data Examples
+
+```{r, echo = FALSE}
+set.seed(2023)
+x1 = seq(-2,2,0.05)
+y0 = rnorm(length(x1))
+y1 = x1^2
+x2 = x1[x1>0]
+y2 = y1[x1>0]
+x3 = x1[x1<0]
+y3 = y1[x1<0]
+x4 = x1
+y4 = x4 + rnorm(length(x4),0,0.3)
+x5 = x1
+y5 = x5 + rnorm(length(x5),0,1)
+x6 = x1[x1 > -1]
+y6 = exp(3*x6)/10 + rnorm(length(x6), 0, 5)
+
+cor_plot = function(x,y)
+{
+  ggplot(tibble(x,y), aes(x=x, y=y)) +
+    geom_point() +
+    geom_smooth(se = FALSE, method = "lm") +
+    geom_vline(xintercept = mean(x), color = "red", linetype = "dashed") +
+    geom_hline(yintercept = mean(y), color = "red", linetype = "dashed") +
+    ggtitle(str_c("r = ", round(cor(x,y),2))) +
+  theme_bw() +
+  theme(text = element_text(size = 20)) 
+}
+```
+
+#### r near 0
+
+```{r, fig.height = 4, echo = FALSE}
+cor_plot(x1, y0)
+```
+
+- There is no apparent pattern in the relationship between $x$ and $y$.
+- $r$ is quite close to 0.
+
+```{r, fig.height = 4, echo = FALSE}
+cor_plot(x1, y1)
+```
+
+- There is a deterministic non-linear relationship between $x$ and $y$
+- $r = 0$
+
+> When $r=0$, there is a weak linear relationship between $x$ and $y$.
+> There may or may not be a strong non-linear relationship between $x$ and $y$.
+
+#### r near 1
+
+```{r, fig.height = 4, echo = FALSE}
+cor_plot(x4, y4)
+```
+
+- $r$ is near 1
+- The points are tightly clustered around a line with a positive slope
+- It does not appear that a curve would fit the trend in the data substantially better.
+
+```{r, fig.height = 4, echo = FALSE}
+cor_plot(x2, y2)
+```
+
+- $r$ near one
+- The points are much more tightly clustered around the blue line with a positive slope than around the horizontal red dashed line
+- However, a curve would fit the data substantially better than a straight line
+- A non-linear relationship is superior to a simpler linear relationship
+
+> When $r = 0.97$ there is a strong positive linear relationship between $x$ and $y$. There may or may not be an even stronger non-linear relationship between $x$ and $y$.
+
+#### r near $-1$
+
+```{r, fig.height = 4, echo = FALSE}
+cor_plot(-x4, y4)
+```
+
+- $r$ is near $-1$
+- The points are tightly clustered around a line with a negative slope
+- It does not appear that a curve would fit the trend in the data substantially better.
+
+```{r, fig.height = 4, echo = FALSE}
+cor_plot(x3, y3)
+```
+
+- $r$ is near $-1$
+- The points are more tightly clustered around the blue line with a negative slope than around the horizontal red dashed line.
+- However, a non-linear relationship is superior to a simpler linear relationship.
+
+> When $r = -0.97$, there is a strong negative linear relationship between $x$ and $y$
+> There may or may not be an even stronger non-linear relationship between $x$ and $y$.
+
+#### r near 0.7
+
+```{r, fig.height = 4, echo = FALSE}
+cor_plot(x5, y5)
+```
+
+- $r$ is moderate and positive
+- the points are more tightly clustered around the blue line with a positive slope than around the horizontal red dashed line
+- the strength of the linear relationship is moderate
+- a simpler linear relationship is an adequate summary of the data
+    - there is no non-linear relationship that is a substantially better fit to the data
+    
+```{r, fig.height = 4, echo = FALSE}
+cor_plot(x6, y6)
+```   
+
+- $r$ is moderate and positive
+- the points are more tightly clustered around the blue line with a positive slope than around the horizontal red dashed line, but only by a smallish amount
+- the strength of the linear relationship is moderate
+- a non-linear linear relationship would fit the data better than a simple line
+
+> When $r$ is near 0.7, there is a moderate positive linear relationship between $x$ and $y$.
+> There may or may not be a nonlinear relationship which fits the data substantially better
+
+
+### Thought Quiz
+
+1. Why is there no distinction between the explanatory and response variables in correlation?  
+2. Why do both variables have to be quantitative?  
+3. How does changing the units of measurement change correlation?  
+4. Why doesn’t a tight fit to a horizontal line imply strong correlation?  
+
+
+
+### Correlation summary
+
+- $r$ is a measure of the strength and direction of the **linear** relationship between two quantitative variables
+- The value of $r$ alone says nothing about the strength of any potential non-linear relationships
+- Graph your data!
+
+
+
+
+
+# Introduction to Regression
+
+## Background
+
+- Many problems in Statistics and Data Science involve examining the relationship between variables.
+- A common setting is when:
+    - a single quantitative variable is deemed a *response variable*
+    - one or more other variables are treated as *explanatory variables* or *predictors*.
+- Such models are referred to as *linear models*
+    - In a standard linear model, the response variable is assumed to have a normal distribution given the predictors.
+
+### Special cases
+
+- Linear models can be categorized based on the number and types of the predictors.
+    - *simple linear regression*: a single quantitative predictor
+    - *multiple regression*: multiple quantitative predictors
+    - *one-way analysis of variance*: a single categorical predictor
+    - *analysis of variance*: multiple categorical predictors
+
+### Generalizations
+
+- When the distribution of the response variable is not modeled with a normal distribution, such as when it is a count or a single 0/1 response, it is often preferable to use a *generalized linear model*.
+    - *logistic regression*: for 0/1 response variables;
+    - *Poisson regression*: for non-negative count data.
+- At other times, it is preferable to model a categorical predictor as having a distribution itself.
+Some of these models are called *mixed effects models*.
+
+
+### Summary of the regression line
+Correlation tells us about the strength and direction of a line.  
+
+- What if we want a description of how the variables vary together?
+
+The regression line...  
+
+- A regression line is a straight line that describes how a response variable y changes as an explanatory variable x changes  
+- We can use a regression line to predict the value of y for a given value of x  
+- The distinction between explanatory and response variables is important  
+- The Least-squares regression line is the unique line such that the sum of the squared vertical (y) distances between the data points and the line is as small as possible.
+
+
+## Example: Age and Height
+
+- The following graph shows a plot of height in inches versus age in months of a boy from age 2 years to 8 years.
+
+```{r}
+height = read_table("../../data/height.txt")
+df = height %>% 
+  filter(age >=2*12 & age <=8*12)
+```
+
+```{r}
+ggplot(df, aes(x = age, y = height)) +
+  geom_point() +
+  geom_smooth(se = FALSE, method = "lm") +
+  ylab("Height (inches)") +
+  xlab("Age (months)")
+```
+
+
+
+## Regression Model
+
+$$
+Y_i = \beta_0 + \beta_1 X_i + \varepsilon_i
+$$
+
+- $Y_i$ is the response variable  
+- $X_i$ is the exoplantory variable  
+- $\beta_0$ is the intercept  
+- $\beta_1$ is the slope  
+- $\varepsilon_i$ is the random "error" between the actual value $Y_i$ and the mean value $\beta_0 + \beta_1 X_i$.
+- A common method to estimate $\beta_0$ and $\beta_1$ from data $x$ and $y$ is the method of "least squares"
+    - This line minimizes the sum of squared vertical distances between the points and a line
+    - Find values $\hat{\beta}_0$ and $\hat{\beta}_1$ to minimize
+
+$$
+\sum_{i=1}^n \big(y_i - (\beta_0 + \beta_1 x_i)\big)^2
+$$
+
+- There is a multivariate calculus solution to this problem, but we explore a different way to do it.
+
+
+### lm()
+
+- We can use `lm()` to fit the linear regression model
+
+```{r}
+df_lm = lm(height ~ age, data = df)
+cf = coef(df_lm)
+cf
+summary(df_lm)
+```
+
+- The coefficients are the slope, $\beta_1 = `r round(cf[2],3)`$, and the intercept $\beta_0 = `r round(cf[1],3)`$.
+    - The slope has units inches per month (y over x)
+    - The intercept has units inches (y)
+- For this data set, $x=0$ is outside the range of the data
+    - The value at $x=0$ has a meaningful interpretation, the height at birth
+    - However, this interpretation requires an *extrapolation* beyond the range of the data which assumes that the linear relationship continues
+    
+    
+    
+### Coefficients and Summary Statistics
+
+- The least squares coefficients have simple equations based on summary statistics of the data.
+
+$$
+\hat{\beta}_1 = r \times \frac{s_y}{s_x}
+$$
+
+$$
+\hat{\beta}_0 = \bar{y} - b_1 \bar{x}
+$$
+
+- Note that the regression line goes through the point $(\bar{x},\bar{y})$.
+
+```{r}
+x = df$age
+y = df$height
+
+xbar = mean(x)
+ybar = mean(y)
+sx = sd(x)
+sy = sd(y)
+r = cor(x,y)
+
+c(xbar, ybar, sx, sy, r)
+
+b1 = r *sy/sx
+b0 = ybar - b1*xbar
+
+c(b0, b1)
+cf
+
+```
+
+
+### Estimated model
+
+Using observations $(x_1,y_1), \ldots, (x_n,y_n)$, we can estimate $\beta_0$ and $\beta_1$ to get our Least-squares regression line as 
+
+$$
+\hat{y}_i = \hat{\beta}_0 + \hat{\beta}_1 x_i,
+$$
+where $\hat{y}_i$ is the predicted response corresponding to $x_i$, and $\hat{\beta}_0$ and $\hat{\beta}_1$ are the estimated intercept and slope, respectively.
+
+Least-squares Estimation: minimize the squared errors with respect to the unknown parameters.  
+- This is accomplished by minimizing the following with respect to the unknown parameters:  
+$$
+\sum_{i=1}^n(y_i - \hat{y}_i)^2 = \sum_{i=1}^n(y_i - (\hat{\beta}_0 + \hat{\beta}_1 x_i))^2
+$$
+- This results in the estimators noted above for $\beta_0$ and $\beta_1$.
+
+
+### Predicted values
+
+- The straightforward way to make a prediction is just to plug into the regression equation with the estimated coefficients.
+
+- Estimate the boy's height at age 50 months.
+
+```{r}
+## one way
+est = b0 + 50*b1
+est
+
+## using coef()
+sum(cf * c(1,50))
+```
+
+- The regression line crosses has the value $\hat{y} = 42.775$ at $x=50$ months.
+
+```{r}
+## Visualization of this prediction
+ggplot(df, aes(x = age, y = height)) +
+  geom_point() +
+  geom_smooth(se = FALSE, method = "lm") +
+  geom_point(aes(x=50, y=b0 + 50*b1), color="red", size=4) + 
+  geom_vline(xintercept = 50, color="red", linetype="dashed") +
+  ylab("Height (inches)") +
+  xlab("Age (months)")
+```
+
+
+
+
+
+#### Understand by standard units
+
+- We can also understand this with standard units.
+
+- The value $x=50$ is $z = (50 - \bar{x})/s_x)$ standard deviations from the mean.
+
+```{r}
+x0 = 50
+z = (x0 - mean(x))/sd(x)
+z
+```
+
+- We predict that $y$ will be $rz$ standard deviations from $\bar{y}$.
+    - Here, $r$ is very close to one, so we predict that $y$ is nearly the same number of standard deviations from $\bar{y}$ as $x$ was from $\bar{x}$.
+    
+```{r}
+yhat = mean(y) + r*z*sd(y)
+yhat
+```
+
+
+
+
+### Lion Data
+
+- Let's try this with the lions data
+
+```{r}
+lions = read_csv("../../data/lions.csv") %>% 
+  rename(black = proportion.black)
+
+ggplot(lions, aes(x = age, y = black)) +
+  geom_point() +
+  geom_smooth(se = FALSE, method = "lm") +
+  xlab("Age (years)") +
+  ylab("Proportion of nose that is black")
+
+lions_lm = lm(black ~ age, data = lions)
+lions_cf = coef(lions_lm)
+lions_cf
+summary(lions_lm)
+```
+
+
+
+#### Summary Statistics
+
+```{r}
+lions_sum = lions %>% 
+  summarize(across(everything(), list(mean = mean, sd = sd)),
+            n = n(),
+            r = cor(age, black)) %>% 
+  relocate(n)
+
+lions_sum = lions_sum %>% 
+  mutate(b1 = r*black_sd/age_sd,
+         b0 = black_mean - b1*age_mean)
+
+lions_sum %>% 
+  print(width = Inf)
+
+```
+
+- Predict at age 10 years
+
+```{r}
+yhat_1 = sum( c(1,10) * lions_cf )
+yhat_1
+```
+
+
+#### Standard Units
+
+```{r}
+x0 = 10
+z = (x0 - lions_sum$age_mean)/lions_sum$age_sd
+z
+```
+
+- 10 years is 2.126 standard deviations above the mean
+
+```{r}
+lions_sum$r*z
+```
+
+- Predict the proportion black of the nose to be $rz = 1.68$ standard deviations above the mean.
+
+```{r}
+yhat_2 = lions_sum$black_mean + lions_sum$r*z*lions_sum$black_sd
+yhat_2
+```
+
+
+
+## Regression Example with fake data
+
+We are going to generate a fake data set to use for our example.  By using fake data, we can also check how close our regression estimates match the true values we used to simulate our data.
+
+
+```{r}
+## Generate our fake data set
+set.seed(246810)
+n = 100 ## sample size
+b0 = 1  ## intercept
+b1 = 2.5  ## slope
+x = runif(n, -3, 10)  ## explanatory variable
+y = rnorm(n,b0+b1*x,3)  ## response variable
+
+tibble(x,y) %>% 
+  ggplot(aes(x = x, y = y)) +
+  geom_point()
+```
+
+
+```{r}
+## Estimate our slope and intercept
+mx = mean(x)
+my = mean(y)
+sx = sd(x)
+sy = sd(y)
+
+r = cor(x,y) # correlation coef
+r
+
+cor(x,y)
+cor(y,x)
+
+b1_hat = r *sy/sx
+b1_hat
+
+b0_hat = my - b1_hat*mx
+b0_hat
+```
+
+We also can use `lm()` to estimate the slope and intercept:
+
+```{r}
+df0 = tibble(x=x, y=y)
+lm0 = lm(y~x, df0)
+summary(lm0)
+
+cf = coef(lm0)
+cf
+c(b0, b1)
+```
+
+
+
+### Residual plots
+
+One approach for checking if our linear assumption holds is to create a residual plot.  Recall that residual corresponding to the $i$th observation is $r_i = y_i - \hat{y}_i$.
+
+```{r}
+library(modelr)
+df0 = df0 %>%
+  add_residuals(lm0) %>%
+  add_predictions(lm0)
+
+ggplot(df0, aes(x=x, y =resid)) +
+  geom_point() +
+  xlab("x") +
+  ylab("Residuals") +
+  geom_hline(aes(yintercept=0), color="red", linetype = "dashed")
+
+```
+
+
+As a comparison, below is a residual plot for a different simulated data set.
+
+Do you see any pattern in this residual plot?
+
+```{r, echo = FALSE}
+## Generate a different fake dataset that is not linear
+set.seed(246810)
+n = 100 ## sample size
+x1 = runif(n, -3, 3)  ## explanatory variable
+y1 = rnorm(n,0.5*x^2,5)  ## response variable
+
+df1 = tibble(x=x1, y=y1)
+lm1 = lm(y~x, df1)
+
+df1 = df1 %>%
+  add_residuals(lm1) %>%
+  add_predictions(lm1)
+
+ggplot(df1, aes(x=x, y=y)) +
+  geom_point()
+
+ggplot(df1, aes(x=x, y=resid)) +
+  geom_point() +
+  xlab("x") +
+  ylab("Residuals") +
+  geom_hline(aes(yintercept=0), color="red", linetype = "dashed")
+```
+
+There is a clear pattern.  The residuals near the boundaries are positive and the residuals near the middle of the x range are negative. 
+
+This suggests that the relationship between y and x is not linear and appears to be quadratic.
+
+
+# Overview of Exoplanet Mass-Radius Relationship
+
+In previous lectures, we explored data from the NASA Exoplanet Archive.  Two variables that are useful for characterizing an exoplanet are mass and radius.
+
+The two most prolific methods for detecting exoplanets are the Transit Method and the Radial Velocity Method. 
+
+- The Transit Method works by monitoring the total light output of a star across time.  
+    - If a planet crosses between the star in the line-of-sight of the telescope, we may observe a dip in the light output of the star.  
+    - A dip that repeats at a regular period suggests that a planet may be present.
+    - Often at least three periodic dips are necessary for the detection to be considered credible.
+    - Here is a YouTube video that illustrates the Transit Method:  https://youtu.be/RrusIZaWDW8  
+    - The depth of the transit (i.e., the depth of the dip in the light output) can be used to estimate the planet's radius relative to the host star.
+    
+- The Radial Velocity (RV) Method looks for a wobble in the star suggesting an object may be orbiting it.  
+    - The host star is observed on multiple nights (often 30 or more) and a spectrum is collected using a spectrograph each nights (sometimes multiple times in a night).  
+    - From the observed spectrum, some techniques are used to estimate how fast the star was moving toward or away from the observed at the time the observation was collect (i.e., the radial velocity is estimated).  
+    - The estimated radial velocities are plotted against time.  If the points follow a particular pattern, it suggests the motion of the star may be due to a planet orbiting.  
+    - Here is a YouTube video that illustrates the RV Method:  https://youtu.be/tUzDKlaTHFM  
+    - Some properties of the shape of the fit RV curve can be used to estimate the mass of the orbiting exoplanet; more precisely, the minimum mass of the planet can be estimated.
+    
+    
+### Data
+
+- Read in the exoplanet data, skipping the rows with meta data
+- Select a subset of variables and rename them
+
+```{r}
+## Read in the csv file
+## Select confirmed planets, rename some variables
+planets = read_csv("../../data/exoplanets-clean-through-2022.csv")
+```
+    
+
+### Mass-Radius Relationship
+
+The *mass-radius relationship* of exoplanets is the relationship between exoplanets’ radius, R, their mass, M.
+
+Modeling the relationship between mass and radius is important for the following reasons:
+
+- Prediction  
+    - The model can be used to predict a planet’s mass given its radius measurement  
+    - We have more observations with radius estimates than mass estimates, so having a way to estimate mass can be useful
+    
+```{r}
+## Number of mass and radius estimates
+planets %>%
+  select(mass, radius) %>%
+  summarize_all(function(x) sum(!is.na(x)))
+```
+    
+- Learning about exoplanets compositions  
+    - Planet compositions can be inferred by their density  
+    - Exoplanets can have a range of compositions such as rocky or gaseous  
+    - Knowing about planet composition may help to understand planetary formation and evolution processes  
+    - For more information about planet compositions, see [exoplanet compositions](http://astro140.courses.science.psu.edu/theme4/census-and-properties-of-exoplanets/exoplanet-composition/)
+    
+    
+### Plot Mass vs. Radius - quick look 
+
+Let's take a quick look at what the Mass-Radius relationship looks like for our exoplanet data.  We'll talk later about a way to model these data.
+
+```{r}
+## How many observations do we have with both mass and radius estimates?
+planets %>%
+  select(mass, radius) %>%
+  drop_na() %>%
+  nrow()
+
+
+ggplot(planets, aes(radius, mass)) +
+  geom_point() +
+  xlab("Radius (Earth Radius)") +
+  ylab("Mass (Earth Mass)")
+```
+
+It's hard to see any clear pattern in this plot.  Let's adjust the axis scales to see if that helps.
+
+
+```{r}
+ggplot(planets, aes(radius, mass)) +
+  geom_point() +
+  xlab("Radius (Earth Radius)") +
+  ylab("Mass (Earth Mass)") +
+  scale_x_log10() +
+  scale_y_log10() +
+  geom_smooth(se=FALSE) +
+  geom_smooth(method="lm", se=FALSE, color="magenta")
+
+```
+
+Now we can see a bit more of a relationship between mass and radius on this log10 scale.
+
+The *general* pattern is that there is a positive association between log10(radius) and log10(mass).
+
+
+
+
+
+# Power-Law Relationship 
+
+One of the popular models used for the Mass-Radius relationship is a power-law relationship:
+
+$$
+y = C \times x^\theta
+$$
+where $y$ is the response variable, $x$ is the explanatory variable, $C$ is a scaling factor, and $\theta$ is the power law coefficient.
+
+
+#### Examples of power laws
+
+```{r}
+power_law = function(theta){
+  df = tibble(x = seq(0, 10, by = .1),
+               y =x^theta)
+  gg = ggplot(df, aes(x,y)) +
+    geom_line() +
+    ggtitle(paste0("Power law exponent: ", theta)) +
+    theme_bw() +
+    theme(text=element_text(size=20))
+  return(gg)
+}
+
+power_law(1)
+power_law(.5)
+power_law(2)
+```
+
+
+#### Power-law model for Mass-Radius relationship
+
+
+While we will consider mass on the y-axis and radius on the x-axis, astronomers will often plot and model these the other way (with radius on the y-axis).  
+
+- Since the mass measurements tend to be harder to obtain, we can look at our mass vs. radius model as useful for using an estimated radius to predict an unknown mass.
+
+
+Astronomers have found that the power law relationship between mass and radius is not constant across the range of values, but instead there seems to be a different power law exponent for different mass ranges. 
+
+- This results in what is known as a *broken power law model* where different ranges of the data have different power law parameters.  
+- We will only consider a subset of the data where the power law exponent is thought to be constant.  We define this subset below.  
+- The range for masses we will consider is between 2 and 127 Earth masses.  This range comes from work by Jingjing Chen and David Kipping in 2016 where they took a data-driven approach to detect *change points* in the broken power law model.  
+    - Chen, J. and Kipping, D., 2016. Probabilistic forecasting of the masses and radii of other worlds. The Astrophysical Journal, 834(1), p.17.  
+    - In their model, they considered radius vs. mass, but found the noted mass range to be consistent with previous work looking for change points in radius.
+    
+    
+Below we define the data subset we will use for our model and plot mass vs. radius.
+
+```{r}
+mr = planets %>%
+  filter(between(mass, 2, 127)) %>%
+  drop_na()
+
+ggplot(mr, aes(radius, mass)) +
+  geom_point() +
+  xlab("Radius (Earth Radius)") +
+  ylab("Mass (Earth Mass)") +
+  scale_x_log10() +
+  scale_y_log10() +
+  geom_smooth(se=FALSE) +
+  geom_smooth(method="lm", se=FALSE, color="magenta")
+```
+
+
+
+
+# Fitting the Power Law Model
+
+We already saw the form of the power law relationship is $y = C \times x^\theta$. Now we'd like to turn this into a statistical model that we can use for the exoplanet data.
+
+The statistical model we will actually fit is going to use a log10 transformation of the power law relationship in order to make the form linear:
+$$
+\begin{align*}
+y_i = \log10(m_i) & = \log10(C) + \theta\log10(r_i) + \varepsilon_i \\
+& = \log10(C) + \theta x_i + \varepsilon_i, i = 1, \ldots, n.
+\end{align*}
+$$
+In this model, the response variable $y_i = \log10(m_i)$ is the $\log10$(mass) for exoplanet $i$, the explanatory variable $x_i = \log10(r_i)$ is the $\log10$(radius) for exoplanet $i$, $\log10(C)$ is the (unknown) intercept, $\theta$ is the (unknown) slope, and $\varepsilon_i$ is the random error for exoplanet $i$.
+
+- Now we have a linear model and can use methods we've already learned to fit the model!
+
+```{r}
+lm1 = lm(log10(mass) ~ log10(radius), data = mr)
+summary(lm1)
+```
+
+The estimated intercept is `r round(coef(lm1)[1],3)` and the estimated slope is `r round(coef(lm1)[2],3)`.
+
+Let's check out our fit model on a plot:
+
+```{r}
+ggplot(mr, aes(radius, mass)) +
+  geom_point() +
+  xlab("Radius (Earth Radius)") +
+  ylab("Mass (Earth Mass)") +
+  scale_x_log10() +
+  scale_y_log10() +
+  geom_abline(aes(slope = coef(lm1)[2] , intercept = coef(lm1)[1]), color="blue")
+```
+
+Let's also see what this looks like on the original scale.  
+
+```{r}
+mr %>%
+  mutate(mass_pred = 10^coef(lm1)[1]*radius^coef(lm1)[2]) %>%
+ggplot(aes(radius, mass)) +
+  geom_point() +
+  geom_line(aes(y = mass_pred), color="red") +
+  xlab("Radius (Earth Radius)") +
+  ylab("Mass (Earth Mass)")
+```
+
+
+Recall that the estimated slope is the power law exponent.  Since it is somewhat near to 1, this suggests that the data on the original scale are not too far from linear in radius.  
+
+- How does our power law model compare to a simple linear regression model fit to our data on the original scale?
+
+```{r}
+mr %>%
+  mutate(mass_pred = 10^coef(lm1)[1]*radius^coef(lm1)[2]) %>%
+ggplot(aes(radius, mass)) +
+  geom_point() +
+  geom_line(aes(y = mass_pred), color="red") +
+  xlab("Radius (Earth Radius)") +
+  ylab("Mass (Earth Mass)") +
+  geom_smooth(method="lm", se=FALSE, color="blue")
+
+summary(lm(mass ~ radius, data=mr))
+#Back to slides
+```
+
+These models are quite different.  We will do some model checking on the appropriateness of our linear model on the log10 scale next.
+
+
+
+
+# Model checking
+
+The linear model we fit uses least squares regression.  
+
+- This means that the parameters were estimated to minimize the total sum of squared errors.  
+-  Let's create a plot that displays these errors.
+
+```{r}
+library(modelr)
+mr = mr %>%
+  add_residuals(lm1) %>%
+  add_predictions(lm1)
+
+ggplot(mr, aes(x=radius, y=mass)) +
+  geom_point() +
+  geom_segment(aes(xend = radius, yend = 10^pred), color="magenta") +
+  xlab("Radius (Earth Radius)") +
+  ylab("Mass (Earth Mass)") +
+  scale_x_log10() +
+  scale_y_log10() +
+  geom_abline(aes(slope = coef(lm1)[2] , intercept = coef(lm1)[1]), color="blue") +
+    theme_bw() +
+    theme(text=element_text(size=20))
+```
+
+
+The vertical magenta bars are the residuals for the model defined as $r_i = y_i - \hat{y}_i$, where $\hat{y}_i$ is the predicted $\log10$(mass) from our model for exoplanet $i$.  
+ 
+- Our fit linear model is such that the sum of the lengths of these vertical lines is minimized.  
+- That is, if we drew a different line on this plot and found the errors, the sum of those errors squared would be greater than those for our `lm1` fit.
+
+
+### Residual plot
+
+Next we are going to consider a residual plot.  This is where we remove the fit model from the data, and only plot the errors (the residuals) against radius.
+
+```{r}
+ggplot(mr, aes(x=radius, y=resid)) +
+  geom_point() +
+  xlab("Radius (Earth Radius)") +
+  ylab("Residual (Earth Mass)") +
+  scale_x_log10() +
+  geom_hline(aes(yintercept = 0), color = "red", linetype = "dashed") +
+  theme_bw() +
+  theme(text=element_text(size=20)) +
+  geom_smooth(se=FALSE)
+```
+
+
+Patterns in a residual plot can suggest that our linear model model may not be appropriate for the data.  
+
+- In this case, you may notice that the residuals corresponding to smaller radius values tend to be positive, and there seems to be a little bit of clustering of points (e.g., above 10 Earth Radius).  
+- But, overall, the model form seems reasonable.
+
+
+
+
+
+# Introduction to inference on linear models
+
+
+##  Assumptions on the random errors
+
+Let's go back to our linear model, 
+$$
+y_i = \log10(C) + \theta x_i + \varepsilon_i, i = 1, \ldots, n.
+$$
+
+We only mentioned that the $\varepsilon_i$'s are random errors, but we did not discuss other assumptions.
+
+It is common to make the following assumptions (which should also be checked):  
+
+- $E(\varepsilon_i) = 0$.  
+    - This implies $E(y_i) = \log10(C) + \theta x_i$.  
+- Errors have a constant variance:  Var$(\varepsilon_i) = \sigma^2$.  
+    - This implies Var$(y_i) = \sigma^2$.  
+- The errors are uncorrelated.
+
+When desiring to do inference on the estimated parameters, another common assumption to make is that the errors are normally distributed, $\varepsilon_i \sim N(0, \sigma)$.  
+
+  - This implies that $y_i \sim N(\log10(C) + \theta x_i, \sigma)$.
+
+This normality assumption on the errors has implications for the estimates of our parameters.  In particular, it has the consequence that the estimators of our intercept and slope are normally distributed.  
+
+
+## Recall: Z-scores and t-scores
+
+In a previous discussion assignment you were introduced to Z-scores and t-scores.  The t-scores are going to show in our regression inference, so we review that information here.  
+
+> Note that in this review, the estimator is the sample mean.  When we get back to regression the estimators will be for the slope or intercept, which will result in some changes in the t-statistic and the degrees of freedom of the resulting t-distribution.
+
+Assume a model where $X_1,\ldots,X_n$ are drawn at random from a distribution with a mean $\mu$ and a standard deviation $\sigma$.
+
+The sampling distribution of the sample mean,
+$\bar{X} = n^{-1}\sum_{i=1}^n X_i$ has a mean $\mu$ and standard deviation $\sigma/\sqrt{n}$.
+
+A mathematical derivation is required to show this formally, or simulation can be used to check if it the expressions are plausible.
+
+#### Z-Score
+
+We have seen in many settings that the z-statistic (substract the mean, divide by the standard deviation) often has an approximate standard normal distribution.
+$$
+Z = \frac{\bar{X} - \mu}{\sigma/\sqrt{n}}
+$$
+If the distribution of each $X_i$ is normal, then $Z$ will be normal as well.
+
+Even if $X_i$ does not have a normal distribution, the distribution of $\bar{X}$ will be approximately normal if $n$ is large enough to overcome the non-normality, a result known as the central limit theorem.
+
+#### t distribution
+
+However, $\sigma$ is typically unknown and things are a bit different when the sample standard deviation $s$ is substituted for $\sigma$.
+$$
+T = \frac{\bar{X} - \mu}{S/\sqrt{n}}
+$$
+where
+$$
+S = \sqrt{ \frac{\sum_{i=1}^n (X_i - \bar{X})^2}{n-1} }
+$$
+
+The added random variability in the denominator means that even when the distribution of a single random variable is exactly normal, the distribution of $T$ is not.
+
+Instead, it has a $t$ distribution with $n-1$ degrees of freedom, which is a bell-shaped density centered at zero, but more spread out than a standard normal density.
+
+When the degrees of freedom becomes large, the $t$ distribution is quite close to standard normal.
+
+It is identical to standard normal when the degrees of freedom is infinite.
+
+#### R functions
+
+These R functions are similar to their normal counterparts.
+
+- `rt()`: generate random variables from a t distribution
+- `pt()`: find an area under a t density
+- `qt()`: find a quantile from a t density
+- `dt()`: return the height of the t density
+
+In addition, the following functions are available in the script ggprob.R to add t densities to plots.
+
+- `geom_t_density()`: add a t density to a plot
+- `geom_t_fill()`: add a filled t density
+- `gt():` graph a t density
+
+The following graph shows a standard normal distribution in black and t distributions with degrees of freedom equal to 1, 2, 4, 8, \ldots, 1028 ranging from yellow to violet.
+
+```{r show-t, echo=FALSE, fig.height=4}
+col = viridis(10,begin=1,end=0)
+g = ggplot()
+  
+for ( i in 1:10 )
+  g = g + geom_t_density(2^(i-1),color=col[i],a=-5,b=5)
+
+g = g +
+  geom_norm_density(color="black") +
+  geom_hline(yintercept=0) +
+  theme_bw()
+
+plot(g)
+```
+
+#### Confidence Intervals
+
+A confidence interval for $\mu$ has the form
+$$
+\bar{x} \pm t^* \frac{s}{\sqrt{n}}
+$$
+where $t^*$ is selected so that the area between
+$-t^*$ and $t^*$ under a t density with $n-1$ degrees of freedom is the desired confidence level.
+
+A confidence interval for a difference between means,
+$\mu_1 - \mu_2$,
+has the form
+$$
+\bar{x}_1 - \bar{x}_2 \pm t^* 
+  \sqrt{ \frac{s_1^2}{n_1} + \frac{s_2^2}{n_2} }
+$$
+where $t^*$ is from a $t$ distribution
+where the degrees of freedom is estimated as a function of the sample sizes and standard deviations.
+Use the function `t.test()`.
+This approach assumes that the standard deviations of the two populations need not be the same.
+
+#### Hypothesis Tests
+
+When using t distribution methods,
+p-values are found by calculating the t statistic and finding areas under t distributions.
+
+
+## Back to regression
+
+These concepts will be used to carry out inference on the estimated parameters of our simple linear model, which we will do next.
+
+
+
+
+# Inference for linear models
+
+If we make the assumption that the errors on linear model are normally distributed, we can carryout hypothesis test on our estimated parameters.
+
+We will focus on inference for the slope parameter since that tends to be the more scientifically interesting parameter.  
+
+The hypothesis test we will carry out is
+$$
+H_0:  \theta = 1 \\
+H_a:  \theta \neq 1
+$$
+
+We test the null that our slope parameter $\theta$ (which is the power law exponent) is 1, suggesting a linear relationship between $\log10$(mass) and $\log10$(radius), against the alternative that there is a power law relationship.
+
+This leads to the test statistic
+$$
+T = \frac{\hat{\theta} - 1}{s_{\hat{\theta}}}
+$$
+where $s_{\hat{\theta}}$ is the standard error of $\hat{\theta}$.  Note that the 1 is from the null hypothesis assumption that $\theta = 1$.
+
+- In case you were curious, the formula for this standard error is
+$$
+s_{\hat{\theta}} =  \sqrt{\frac{\sum_{i = 1}^n (y_i - \hat{y}_i)^2/(n-2)}{\sum_{i = 1}^n (x_i - \overline{x})^2}}
+$$
+where $\overline{x}$ is the sample mean of the $x_i$, and $\hat{y}_i$ is the predicted $\log10$(mass) values for observation $i$.  
+
+- We can calculate this as follows:
+```{r}
+n = nrow(mr)
+syy = sum(mr$resid^2)
+sxx = sum((log10(mr$radius) - mean(log10(mr$radius)))^2)
+sqrt(syy/(n-2)/sxx)  ## standard error using the formula above
+coef(summary(lm1))[2, "Std. Error"] ## standard error from our lm1 model
+```
+This is also the standard error that would be used in a confidence interval for $\theta$:  $\hat{\theta} \pm t_{n-2} s_{\hat{\theta}}$, where $t_{n-2}$ is selected based on the desired confidence level.  
+
+- You may be wondering why we have a $t$ distribution with $n-2$ degrees of freedom here.  This is because our model has two parameters (the slope and intercept) so we "use up" two degrees of freedom when estimating them. 
+
+
+The output of our estimated model gives us the result of (a different) hypothesis test:
+$$
+H_0:  \theta = 0 \\
+H_a:  \theta \neq 0
+$$
+
+```{r}
+summary(lm1)
+```
+
+The estimated slope is $\hat{\theta} = 1.12339$ with an estimated standard error of $SE(\hat{\theta})=0.05088$.
+
+This leads to a t-statistic of
+$$
+T = \frac{1.12339  - 0}{0.05088} = 22.08
+$$
+
+We see that there are 368 observations in our data set.  Since there are two estimated parameters in our linear model (slope and intercept), we use 368-2 = 366 degrees of freedom for the t-distribution for our slope.
+```{r}
+## Number of observations
+mr %>%
+  nrow()
+
+## Compute our p-value
+pt(22.08, df=366, lower.tail=FALSE)*2 ## P(T >= 22.08) x 2
+```
+
+Notice that this p-value is very small leading us to reject the null hypothesis that the slope is zero.
+
+
+
+
+To carry out our hypothesis test with
+$$
+H_0:  \theta = 1 \\
+H_a:  \theta \neq 1
+$$
+we use the following t-statistic:
+$$
+T = \frac{1.12339 - 1}{0.05088} = 2.425118
+$$
+
+```{r}
+## t-statistic
+tstat = (coef(summary(lm1))[2]-1)/coef(summary(lm1))[2, "Std. Error"]
+tstat
+
+## Compute our p-value
+pt(tstat, df=nrow(mr)-2, lower.tail=FALSE)*2 ## P(T >= 2.425118) x 2
+```
+
+Since the p-value is less than 0.05, there is evidence suggesting that we can reject the null hypothesis.  In other words, the results suggest that a linear model is not appropriate, in favor of a power law exponent greater than 1 (p-value=0.016, two-sided t-test).
+
+
+We can create a plot to visualize the p-value:
+
+```{r}
+gt(nrow(mr)-2) +
+  geom_vline(aes(xintercept = c(-abs(tstat), tstat)), color="red", linetype="dashed") +
+  geom_t_fill(nrow(mr)-2, a = abs(tstat), b=6) +
+  geom_t_fill(nrow(mr)-2, a=-6, b = -abs(tstat))
+
+```
+
+
+
+
+
+# Inference for linear models via simulation
+
+Instead of relying on the theoretical values for the standard deviation of the parameters, we could instead run a simulation.
+
+We can use the parametric bootstrap, which involves generating many realizations of the data using the initial estimate for $\theta$ and then fitting the regression model on the simulated data set to obtain many estimates of $\theta$.  The mean and standard deviation of these values can be used for inference.
+
+Here are the steps for the parametric bootstrap:
+
+1. Estimate the parameters of the statistical model.
+2. Use the estimated model and simulate a new data set of the same size.
+    - In a regression framework, this would involve adding to each predicted value $y^*$ a new simulated normally distributed random error from a distribution with mean zero and the estimated standard deviation.
+3. Fit a linear model to the simulated data set and estimate the coefficients.
+4. Repeat steps 2 and 3 many times.
+5. Calculate the standard deviations of the coefficients from the simulated data sets as estimates of the standard errors.
+
+```{r simulation-parametric-bootstrap}
+n = mr %>%
+  select(mass, radius) %>%
+  drop_na() %>%
+  nrow()
+sigma_resid = sd(mr$resid)
+N = 100 # 10000
+b_0 = numeric(N)
+b_1 = numeric(N)
+
+for ( i in 1:N )
+{
+  mr_new = mr %>%
+    drop_na() %>%
+    mutate(mass = 10^(pred + rnorm(n,0,sigma_resid))) # these are the "new" y's
+  lm2 = lm(log10(mass) ~ log10(radius), data=mr_new)
+  b_0[i] = coef(lm2)[1]
+  b_1[i] = coef(lm2)[2]
+}
+
+df_coef = tibble(b_0,b_1)
+```
+
+
+
+Let's look at the slope parameter.  We can estimate the mean and standard deviation from the parametric bootstrap simulation, and then compare it to a normal distribution with the same mean and standard deviation.
+
+```{r}
+mean_slope = mean(df_coef$b_1)
+mean_slope
+sd_slope = sd(df_coef$b_1)
+sd_slope
+
+
+ggplot(df_coef, aes(x=b_1)) +
+  geom_density() +
+  xlab("theta") +
+  ylab("Density") +
+  geom_norm_density(mu = mean_slope, sigma = sd_slope, color="blue") +
+  ggtitle("Exoplanet Mass-Radius Relationship",
+          subtitle = "Parametric bootstrap distribution of the slope (black), and a normal density (blue)")
+```
+
+The simulated distribution (black curve) follows the normal distribution (blue curve) quite well.
+
+So how do these values compare to what we calculated with the theoretical equations?
+
+```{r}
+paste("Bootstrap: ", round(mean_slope,3), round(sd_slope,3))
+paste("Theoretical: ", round(coef(lm1)[2],3), round(coef(summary(lm1))[2, "Std. Error"],3))
+```
+
+Very close as well!
+
+
+
+
+# Prediction
+
+### Recall:  Mass-Radius Relationship
+
+The *mass-radius relationship* of exoplanets is the relationship between exoplanets’ radius, R, their mass, M.
+
+Modeling the relationship between mass and radius is important for the following reasons:
+
+- Prediction  
+    - The model can be used to predict a planet’s mass given its radius measurement  
+    - We have more observations with radius estimates than mass estimates, so having a way to estimate mass can be useful
+    
+```{r}
+## Number of mass and radius estimates
+planets %>%
+  select(mass, radius) %>%
+  summarize_all(function(x) sum(!is.na(x)))
+```
+    
+- Learning about exoplanets compositions  
+    - Planet compositions can be inferred by their density  
+    - Exoplanets can have a range of compositions such as rocky or gaseous  
+    - Knowing about planet composition may help to understand planetary formation and evolution processes  
+    - For more information about planet compositions, see [exoplanet compositions](http://astro140.courses.science.psu.edu/theme4/census-and-properties-of-exoplanets/exoplanet-composition/)
+    
+    
+#### Plot Mass vs. Radius - quick look 
+
+Let's take a quick look at what the Mass-Radius relationship looks like for our exoplanet data.  We'll talk later about a way to model these data.
+
+```{r}
+ggplot(planets, aes(radius, mass)) +
+  geom_point() +
+  xlab("Radius (Earth Radius)") +
+  ylab("Mass (Earth Mass)") +
+  scale_x_log10() +
+  scale_y_log10() +
+  geom_smooth(se=FALSE) +
+  geom_smooth(method="lm", se=FALSE, color="magenta")
+
+```
+
+The *general* pattern is that there is a positive association between log10(radius) and log10(mass).
+
+
+#### Recall:  Power-law model for Mass-Radius relationship
+
+
+While we will consider mass on the y-axis and radius on the x-axis, astronomers will often plot and model these the other way (with radius on the y-axis).  
+
+- Since the mass measurements tend to be harder to obtain, we can look at our mass vs. radius model as useful for using an estimated radius to predict an unknown mass.
+
+
+Astronomers have found that the power law relationship between mass and radius is not constant across the range of values, but instead there seems to be a different power law exponent for different mass ranges. 
+
+- This results in what is known as a *broken power law model* where different ranges of the data have different power law parameters.  
+- We will only consider a subset of the data where the power law exoponent is thought to be constant.  We define this subset below.  
+- The range for masses we will consider is between 2 and 127 Earth masses.  This range comes from work by Jingjing Chen and David Kipping in 2016 where they took a data-driven approach to detect *change points* in the broken power law model.  
+    - Chen, J. and Kipping, D., 2016. Probabilistic forecasting of the masses and radii of other worlds. The Astrophysical Journal, 834(1), p.17.  
+    - In their model, they considered radius vs. mass, but found the noted mass range to be consistent with previous work looking for change points in radius.
+    
+    
+Below we define the data subset we will use for our model and plot mass vs. radius.
+
+```{r}
+mr = planets %>%
+  filter(between(mass, 2, 127)) %>%
+  drop_na()
+
+ggplot(mr, aes(radius, mass)) +
+  geom_point() +
+  xlab("Radius (Earth Radius)") +
+  ylab("Mass (Earth Mass)") +
+  scale_x_log10() +
+  scale_y_log10() +
+  geom_smooth(se=FALSE) +
+  geom_smooth(method="lm", se=FALSE, color="magenta")
+```
+
+
+
+
+
+#### Recall:  Power law model 
+
+The form of the power law relationship is $y = C \times x^\theta$. 
+
+The statistical model we will actually fit is going to use a log10 transformation of the power law relationship in order to make the form linear:
+$$
+\begin{align*}
+y_i = \log10(m_i) & = \log10(C) + \theta\log10(r_i) + \varepsilon_i \\
+& = \log10(C) + \theta x_i + \varepsilon_i, i = 1, \ldots, n.
+\end{align*}
+$$
+In this model, the response variable $y_i = \log10(m_i)$ is the $\log10$(mass) for exoplanet $i$, the explanatory variable $x_i = \log10(r_i)$ is the $\log10$(radius) for exoplanet $i$, $\log10(C)$ is the (unknown) intercept, $\theta$ is the (unknown) slope, and $\varepsilon_i$ is the random error for exoplanet $i$.
+
+- Fit the model:
+
+```{r}
+lm1 = lm(log10(mass) ~ log10(radius), data = mr)
+summary(lm1)
+
+## Add residuals and predicted values to our data frame 
+mr = mr %>%
+  add_residuals(lm1) %>%
+  add_predictions(lm1)
+```
+
+The estimated intercept is `r round(coef(lm1)[1],3)` and the estimated slope is `r round(coef(lm1)[2],3)`.
+
+
+#### Prediction
+
+Let's take a look at our estimated model on a plot again:
+
+```{r}
+ggplot(mr, aes(radius, mass)) +
+  geom_point() +
+  xlab("Radius (Earth Radius)") +
+  ylab("Mass (Earth Mass)") +
+  scale_x_log10() +
+  scale_y_log10() +
+  geom_abline(aes(slope = coef(lm1)[2] , intercept = coef(lm1)[1]), color="blue") +
+  theme(text = element_text(size=20))
+```
+
+The estimated regression model is 
+$$
+\hat{y}_i = `r round(coef(lm1)[1],3)` + `r round(coef(lm1)[2],3)` x_i.
+$$
+
+
+We can use the estimated linear model to predict a mass for a given radius.  
+
+Note that the function below assumes the input `x` is radius on the original scale and returns an estimated mass on the original scale.
+```{r}
+predict_y = function(x){
+    ## x = radius (on original scale)
+    slope = coef(lm1)[2]
+    intercept = coef(lm1)[1]
+    logy = intercept + slope*log10(x)
+    y = 10^logy
+    names(y) = "predicted mass"
+    return(y)
+}
+
+radius_input = 3
+mass_predicted = predict_y(3)
+mass_predicted
+```
+
+We can plot this point as well:
+
+```{r}
+ggplot(mr, aes(radius, mass)) +
+  geom_point() +
+  xlab("Radius (Earth Radius)") +
+  ylab("Mass (Earth Mass)") +
+  scale_x_log10() +
+  scale_y_log10() +
+  geom_abline(aes(slope = coef(lm1)[2] , intercept = coef(lm1)[1]), color="blue") +
+  geom_point(aes(x = radius_input, y=mass_predicted), color = "red", size = 2) +
+  theme(text = element_text(size=20))
+```
+
+An interesting and useful feature of the least squares regression line is that it goes through the point $(\bar{x}, \bar{y})$.  We can check this with our function as well.  
+
+- This property holds on the scale of the linear model.  
+- Since our $x$ and $y$ variables were transformed, we have to make some adjustments to the scale.
+
+```{r}
+radius = 10^mean(log10(mr$radius)) ## mean of log10(radius), transformed back to original scale for function
+radius
+log10(predict_y(radius)) ## predicted value at xbar
+
+print(paste0("(xbar,ybar) = (",round(mean(log10(mr$radius)),3), ", ", round(mean(log10(mr$mass)),3),")"))
+```
+
+
+We can get our predicted values of mass, but there is uncertainty in this estimate, and it can be desirable to define an interval around the estimate to capture this uncertainty.  
+
+There are two common ways to look at this problem of predicting $\hat{y}$:
+
+- Confidence interval  
+    - The goal is an uncertainty interval around the parameter $E(y \mid x^*)$, the expected value of the response given the explanatory variable $x^*$.
+
+- Prediction interval  
+    - The goal is an uncertainty interval around some future $y^*$ for some given $x^*$.  
+    - The prediction interval is trying to capture a *random* outcome $y^*$ rather than a fixed parameter like the $E(y \mid x^*)$.  
+    
+We will focus on the confidence interval version next.
+
+
+
+
+# Confidence intervals for $E(y \mid x^*)$
+
+The goal is an uncertainty interval around the parameter $E(y \mid x^*)$, the expected value of the response given the explanatory variable $x^*$.
+
+The uncertainty in the estimated $\hat{y}$ needs to account for the uncertainty in the estimated intercept and estimated slope.  The formula for this uncertainty is
+$$
+s_{\hat{y}} = \sqrt{\left((n-2)^{-1} \sum_{i=1}^n(y_i - \hat{y}_i)^2\right)\left(n^{-1} + \frac{(x^* - \overline{x})^2}{\sum_{i = 1}^n (x_i - \overline{x})^2} \right)}
+$$
+
+where $x^*$ is the radius (on the original scale) for which the confidence interval of $E(y \mid x^*)$ is desired.
+
+We can write a function to compute $s_{\hat{y}}$:
+```{r}
+s_yhat = function(x){
+  ## x = radius on original scale
+  n = nrow(mr)
+  syy = sum(mr$resid^2)/(n-2)
+  mean_logx <-mean(log10(mr$radius))
+  sxx = sum((log10(mr$radius) - mean_logx)^2)
+  out = sqrt(syy*(1/n + (log10(x)-mean_logx)^2/sxx))
+  return(out)
+}
+
+s_yhat(3)
+
+```
+
+
+Next we add the lower and upper bounds for 95% confidence interval to `mr`, then add them to our plot.
+
+```{r}
+n = nrow(mr)
+mr = mr %>%
+  mutate(y_plus_se = pred + qt(.975, n-2)*s_yhat(radius),
+         y_minus_se = pred - qt(.975, n-2)*s_yhat(radius))
+
+ggplot(mr, aes(radius, mass)) +
+  geom_point() +
+  xlab("Radius (Earth Radius)") +
+  ylab("Mass (Earth Mass)") +
+  scale_x_log10() +
+  scale_y_log10() +
+  geom_smooth(method="lm", se=TRUE, color="red")+
+  geom_abline(aes(slope = coef(lm1)[2] , intercept = coef(lm1)[1]), color="blue") +
+  geom_line(aes(x = radius, y= 10^y_plus_se), color = "red", linetype="dashed") +
+  geom_line(aes(x = radius, y= 10^y_minus_se), color = "red", linetype="dashed") +
+  geom_vline(aes(xintercept = 10^(mean(log10(radius)))), color="blue", linetype="dotted") +
+  theme(text = element_text(size=20)) 
+```
+
+Notice that our 95% confidence interval outlines the shaded region when we use `geom_smooth(method="lm", se=TRUE)`!
+
+It is subtle in the plot, but confidence interval narrows as $x^*$ gets closer to the mean of the $\log10$(radius).  
+
+- See the vertical dotted blue line above for the location of this mean.  
+- The formula for $s_{\hat{y}}$ reveals why this happens.
+
+
+
+
+# Prediction Intervals for random $y^*$
+
+- The goal is an uncertainty interval around some future $y^*$ for some given $x^*$.  
+- The prediction interval is trying to capture a *random* outcome $y^*$ rather than a fixed parameter like the $E(y \mid x^*)$.  
+
+The uncertainty in some *random* outcome $y^*$ needs to account for the uncertainty in the estimated intercept and estimated slope, but also the uncertainty related to the randomness of the outcome (from the $\varepsilon^*$ associated with $y^*$).
+
+The formula for this uncertainty is
+$$
+s_{\hat{y}^*} = \sqrt{\left((n-2)^{-1} \sum_{i=1}^n(y_i - \hat{y}_i)^2\right)\left(1 + n^{-1} + \frac{(x^* - \overline{x})^2}{\sum_{i = 1}^n (x_i - \overline{x})^2} \right)}
+$$
+
+where $x^*$ is the radius (on the original scale) that is associated with $\hat{y}^*$.
+
+We can write a function to compute $s_{\hat{y}}$:
+```{r}
+s_yhatstar = function(x){
+  ## x = radius on original scale
+  n = nrow(mr)
+  syy = sum(mr$resid^2)/(n-2)
+  mean_logx <-mean(log10(mr$radius))
+  sxx = sum((log10(mr$radius) - mean_logx)^2)
+  out = sqrt(syy*(1 + 1/n + (log10(x)-mean_logx)^2/sxx))
+  return(out)
+}
+
+s_yhatstar(3)
+
+```
+
+
+Next we add the lower and upper bounds for 95% prediction interval to `mr`, then add them to our plot
+
+```{r}
+n = nrow(mr)
+mr = mr %>%
+  mutate(ystar_plus_se = pred + qt(.975, n-2)*s_yhatstar(radius),
+         ystar_minus_se = pred - qt(.975, n-2)*s_yhatstar(radius))
+
+ggplot(mr, aes(radius, mass)) +
+  geom_point() +
+  xlab("Radius (Earth Radius)") +
+  ylab("Mass (Earth Mass)") +
+  scale_x_log10() +
+  scale_y_log10() +
+  geom_line(aes(x = radius, y= 10^ystar_plus_se), color = "green", linetype="dashed", size= 1.5) +
+  geom_line(aes(x = radius, y= 10^ystar_minus_se), color = "green", linetype="dashed", size= 1.5) +
+  geom_smooth(method="lm", se=TRUE, color="red")+
+  geom_abline(aes(slope = coef(lm1)[2] , intercept = coef(lm1)[1]), color="blue") +
+  geom_line(aes(x = radius, y= 10^y_plus_se), color = "red", linetype="dashed") +
+  geom_line(aes(x = radius, y= 10^y_minus_se), color = "red", linetype="dashed") +
+  geom_vline(aes(xintercept = 10^(mean(log10(radius)))), color="blue", linetype="dotted") +
+  theme(text = element_text(size=20))
+```
+
+Notice the 95% prediction interval (green dashed lines) is wider than the 95% confidence interval.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

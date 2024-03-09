@@ -1,0 +1,1340 @@
+---
+title: "Random Variables"
+output: html_document
+---
+
+\newcommand{\E}{\mathsf{E}}
+\newcommand{\Var}{\mathsf{Var}}
+\newcommand{\SD}{\mathsf{SD}}
+\renewcommand{\prob}{\mathsf{P}}
+
+
+This R Markdown document includes contributions from Professor Bret Larget
+
+### Setup details
+
+- You will need the package `tidyverse` for these lectures.   
+- You will need the **egg** package for this file
+    - Install **egg** if you do not already have it
+    
+- Later lectures use the following scripts, assumed to be in your course scripts directory.
+    - `COURSE/scripts/viridis.R`
+    - `COURSE/scripts/ggprob.R`
+
+- The file `ggprob.R` contains a number of functions for graphing probability distributions in a tidyverse-friendly manner.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      error = TRUE, fig.height = 4)
+library(tidyverse)
+library(kableExtra)
+library(egg)
+library(broman)
+source("../../scripts/viridis.R")
+source("../../scripts/ggprob.R")
+```
+
+## Binomial Distribution
+
+- Binomial distributions are discrete distributions that consider the number of "successes" in a fixed series of $n$ trials.
+
+- Example:  Flipping a coin 10 times and recording the number of heads (successes) would follow a binomial distribution with $n = 10$ and probability of success $p = 0.5$ (assuming the coin is fair!).
+
+- Binomial distributions are used when we want to know about the occurrence of an event, not its magnitude.  
+  - In a clinical trial, a patient’s condition may improve or not. The binomial distribution would model the number of patients who improved, not how much better they feel.  
+
+
+#### The BINS acronym for binomial assumptions
+
+A binomial random variable satisfies the following properties:
+
+- B = **binary outcomes** (each trial may be categorized with two outcomes, conventionally labeled *success* and *failure*)
+- I = **independence** (results of trials do not affect probabilities of other trial outcomes)
+- N = **fixed sample size** (the sample size is pre-specified and not dependent on outcomes)
+- S = **same probability** (each trial has the same probability of *success*)
+
+## Binomial Parameters
+
+- There are two parameters for the binomial distribution:
+    - $n$ which is the number of trials
+    - $p$ which is the *success* probability
+    
+- If $X$ follows a binomial distribution with parameters $n$ and $p$, 
+we write $X \sim \text{Binomial}(n, p)$
+    
+    
+## Binomial Moments
+
+- The mean is $\mu = np$
+- The variance is $\sigma^2 = np(1-p)$
+- The standard deviation is $\sigma = \sqrt{np(1-p)}$
+
+- We will not go over the mathematical derivation of these of these formulas, but can demonstrate them with a quick simulation.
+    - We will generate 1,000,000 binomial random variables with $n = 100$ and $p = 0.5$.
+    - The exact mean is $\mu = 100 \times 0.5 = 50$.
+    - We expect the sample mean to be very close with such a large sample size.
+    - The exact variance is $\sigma^2 = 100 \times 0.5 \times (1-0.5) = 25$.
+    - Thus, the standard deviation of the distribution is $\sigma = \sqrt{25} = 5$.
+    - Again, we expect the sample standard deviation to be very close to this value.
+- The function `rbinom()` may be used to generate random binomial variables.
+- We will keep the values in a tibble and then summarize and graph them.
+
+```{r}
+B = 1000000
+n = 100
+p = 0.5
+
+binomial_example = tibble(
+  x = rbinom(B, n, p)
+)
+
+## use as.data.frame to print more digits
+binomial_example %>% 
+  summarize(mean = mean(x),
+            variance = var(x),
+            sd = sd(x)) %>% 
+  as.data.frame()
+```
+
+- The simulation does not prove that the formulas are correct, but is consistent with the theory.
+- Try doing the same thing with different numerical values!
+
+- We can also make a bar graph of the numbers generated in the simulation.
+    - Note here setting `aes(y = after_stat(density))` changes the scale on the y axis to plot as a density instead of as counts.
+    - Heights are adjusted so that the total area is equal to one.
+
+```{r}
+ggplot(binomial_example, aes(x=x)) +
+  geom_histogram(aes(y = after_stat(density)),
+                 center = 50, binwidth = 1,
+                 color = "black", fill = "firebrick") +
+  ylab("Probability") +
+  ggtitle("Simulated Binomial Distribution",
+          subtitle = "n = 100, p = 0.5") +
+  theme_minimal()
+```
+
+- An alternative is to use `geom_segment()` to plot the observed proportions.
+    - Here, we compute the proportions before sending to `ggplot()`
+
+```{r}
+binomial_example %>% 
+  count(x) %>% 
+  ungroup() %>% 
+  mutate(p = n/sum(n)) %>% 
+ggplot(aes(x=x, y=p, xend=x, yend=0)) +
+  geom_segment(color = "blue") +
+  geom_hline(yintercept = 0) +
+  ylab("Probability") +
+  ggtitle("Simulated Binomial Distribution",
+          subtitle = "n = 100, p = 0.5") +
+  theme_minimal()
+```
+
+
+## Explore Binomial Graphs
+
+- The following arrangement of graphs shows how the shape of binomial distributions changes for $p \in \{0.1, 0.5, 0.9\}$ as $n$ increase from 1 to 1024 by powers of 2.
+- Notice how the skewness and scale change for each $p$ as $n$ increases.
+- Install the **egg** library for `ggarrange()` to arrange the plots
+- Note the use of:
+    - the **tidyr** function `expand_grid()` which creates a data frame with all possible combinations of `n_options` and `p_options`
+    - the use of `pmap()` from **purrr** to iterate over the rows of a data frame
+    - the anonymous function which produces a plot where `.x` is the first argument `n_options` and `.y` is the second argument `p_options`
+
+```{r binomial-graphs, echo = TRUE, fig.height = 24}
+n_options = 2^seq(0, 10, by = 1)
+p_options = c(0.1, 0.5, 0.9)
+
+binomial_plots = expand_grid(n_options, p_options) %>% 
+  pmap(~{
+    gbinom(.x, .y,
+           color = if_else(.y == 0.1, "red", 
+                           if_else(.y == 0.5, "purple", "blue")),
+           scale = TRUE) +
+      theme_minimal()
+  })
+
+ggarrange(plots = binomial_plots,
+          ncol = length(p_options),
+          nrow = length(n_options))
+```
+
+- When $p = 0.1$, the distributions are skewed for small $n$, but become more symmetric as $n$ increases.
+- When $p=0.5$, the distributions are always symmetric.
+- The same shape emerges in both cases: the normal bell-shaped curve.
+
+## Binomial Probabilities
+
+- The formula for binomial probabilities is given here.
+
+$$
+P(X = k) = \binom{n}{k} p^k(1-p)^{n-k}, \qquad \text{for $k=0,1,\ldots,n$}
+$$
+
+- The binomial coefficient counts the number of distinct sequences of length $n$ with exactly $k$ symbols of one type and $n-k$ symbols of another.
+
+$$
+\binom{n}{k} = \frac{n!}{k!(n-k)!}
+$$
+
+- The expression $p^k (1-p)^{n-k}$ is the probability of each single sequence of length $n$ with exactly $k$ symbols of one type and $n-k$ symbols of another.
+
+- The probability that there are exactly $k$ "successes" in a sequence of $n$ independent trials with success probability $p$ is the sum of the probabilities of all the ways this could occur.
+
+### Example
+
+- The R function `choose()` calculates $\binom{n}{k}$
+- The R function `factorial()` calculates $n!$
+    - This calculation is not stable for moderately large values.
+    - A more stable option is `lgamma()` where `lgamma(x+1)` is equal to $\ln x!$.
+- But we will use the built-in function `dbinom()` to calculate binomial probabilities without worrying about the formula or numerical instabilities.    
+
+```{r binomial-calc}
+n = 5
+p = 0.5
+k = 2
+
+choose(n, k)
+factorial(n)/(factorial(k)*factorial(n-k)) # n! /(k!(n-k)!)
+
+choose(n, k)*p^k*(1-p)^(n-k)
+dbinom(k,n,p) # see below
+```
+
+
+## R Binomial Functions
+
+- `rbinom(n, size, prob)`
+- `dbinom(x, size, prob)`
+- `pbinom(q, size, prob)`
+- `qbinom(p, size, prob)`
+
+- Note that with these functions, the parameters for the Binomial are `size` and `prob`
+(what we've been referring to as $n$ and $p$, respectively).
+- The argument `n` in `rbinom()` is the sample size, how many random variables for which to generate values.
+
+
+### Demonstrations
+
+#### rbinom()
+
+```{r rbinom}
+# Simulate binomial random variables
+n = 5
+p = 0.5
+x = rbinom(6, n, p)
+x
+mean(x) # estimate based on sample
+n*p # true mean
+
+var(x) # estimate based on sample
+n*p*(1-p) # true variance
+```
+
+
+#### dbinom()
+
+```{r dbinom}
+## Binomial "density" calculations
+dbinom(0:n, n, p)
+
+dbinom(4, n, p)
+choose(n, 4)*p^4*(1-p)^(n-4)
+```
+
+
+#### gbinom()
+
+- This is not a base R command, but is defined in the script `ggprob.R`.
+
+```{r dbinom-plot}
+## Binomial "density" plot
+gbinom(n,p) 
+```
+
+
+#### pbinom()
+
+```{r pbinom}
+## Binomial distribution calculations
+## P(X <= x) = F(x), where F is the distribution function.
+
+# P(X <= 3):
+pbinom(3, n, p)
+dbinom(0, n, p) + dbinom(1, n, p) + dbinom(2, n, p) + dbinom(3, n, p)
+1 - dbinom(4, n, p) - dbinom(5, n, p)
+
+# P(X > 3):
+1 - pbinom(3, n, p) # 1 - P(X <= 3)
+pbinom(3, n, p, lower.tail=FALSE) # P(X > 3)
+dbinom(4, n, p) + dbinom(5, n, p)
+
+# P(X < 3):
+pbinom(3, n, p) - dbinom(3, n, p)
+pbinom(2, n, p) # P(X <= 2) = P(X < 3)
+```
+
+
+#### qbinom()
+
+```{r qbinom}
+## Binomial quantile calculations
+## Docs:  The quantile is defined as the smallest value x such that P(X<=x) = F(x) ≥ p, where F is the distribution function.
+qbinom(.2, n, p) # which x such that P(X <= x) = 0.2; there may not be an exact x
+dbinom(0, n, p) + dbinom(1, n, p) + dbinom(2, n, p)
+dbinom(0, n, p) + dbinom(1, n, p) 
+```
+
+
+
+
+## Problems
+
+### Problem 1
+
+What are the mean and standard deviation of the $\text{Binomial}(90, 0.7)$ distribution?
+
+#### Live Coding
+
+```{r}
+
+```
+
+#### Solution
+
+The mean is $\mu = (90)(0.7) = `r 90*0.7`$.
+
+The standard deviation is $\sigma = \sqrt{90(0.7)(0.3)} = `r sqrt(90*0.7*0.3)`$.
+
+### Problem 2
+
+Plot the $\text{Binomial}(90, 0.7)$ distribution. 
+Add a red partly transparent solid vertical line at the mean, dashed vertical lines one standard deviation above and below the mean, and dotted lines two standard deviations above and below the mean.
+
+#### Live Coding
+
+```{r}
+
+```
+
+#### Solution
+
+```{r}
+n = 90
+p = 0.7
+mu = n*p
+sigma = sqrt(n*p*(1-p))
+
+gbinom(n, p, scale = TRUE) +
+  geom_vline(xintercept = mu, color = "red", alpha = 0.5) +
+  geom_vline(xintercept = mu + c(-1,1)*sigma,
+             color = "red", linetype = "dashed") +
+  geom_vline(xintercept = mu + c(-2,2)*sigma,
+             color = "red", linetype = "dotted") +
+  theme_minimal()
+```
+
+
+### Problem 3
+
+If $X \sim \text{Binomial}(90, 0.7)$, what is $P(X = \mu)$?
+
+#### Live Coding
+
+```{r}
+
+```
+
+#### Solution
+
+```{r}
+dbinom(mu, n, p)
+```
+
+
+### Problem 4
+
+If $X \sim \text{Binomial}(90, 0.7)$,
+what is $P(\mu - \sigma \leq X \leq \mu + \sigma)$?
+
+#### Live Coding
+
+```{r}
+
+```
+
+#### Solution
+
+```{r}
+## endpoints
+mu + c(-1,1)*sigma
+
+## Within one standard deviation
+## P(mu - sigma <= X <= mu + sigma)
+## P(59 <= X <= 67) = P(X <= 67) - P(X <= 58)
+pbinom(67, n, p) - pbinom(58, n, p)
+
+## Sum of probabilities
+sum( dbinom(59:67, n, p) )
+```
+
+
+### Problem 5
+
+Find the 0.05 and 0.95 quantiles of the $\text{Binomial}(90, 0.7)$ distribution.
+
+#### Live Coding
+
+```{r}
+
+```
+
+#### Solution
+
+```{r}
+qbinom(c(0.05, 0.95), n, p)
+
+## Compare to the tail probabilities
+pbinom(56, n, p) # P(X <= 56) >= 0.05
+pbinom(55, n, p) # P(X <= 55) < 0.05
+
+## Compare to the tail probabilities
+pbinom(70, n, p) # P(X <= 70) >= 0.95
+pbinom(69, n, p) # P(X <= 69) < 0.95
+```
+
+
+### Problem 6
+
+Explain why each of the following random variables does not have a binomial distribution.
+
+### A
+
+$X_1$ is the number of times a fair coin is tossed until we have observed at least one head and one tail.
+
+#### Solution
+
+There is not a fixed number of trials.
+
+### B
+
+$X_2$ is the number of red balls drawn when one is picked from a bucket with 10% red balls, a second is picked from a bucket with 20% red balls, and a third is drawn from a bucket with 30% red balls.
+
+#### Solution
+
+The value of $p$ is not the same for all trials.
+
+### C
+
+$X_3$ is the number of red balls selected in a sample of 5 chosen without replacement from a bucket with ten red balls and ten white balls.
+
+#### Solution
+
+The trials are not independent. The color of the first ball selected affects the probability of the color of the second ball, for example.
+
+
+### Problem 7
+
+#### 7A
+Make a line plot of the 0.75 quantile of binomial distributions with $p=0.7$ and $n$ varying from 1 to 500 with $n$ on the x axis and the quantile on the y axis.
+Describe the shape of the relationship between these variables.
+
+#### Solution
+
+```{r}
+prob7 = tibble(
+  n = 1:500,
+  q75 = qbinom(0.75, n, 0.7))
+
+ggplot(prob7, aes(x=n, y=q75)) +
+  geom_line()
+```
+
+- The relationship is approximately linear.
+
+
+#### 7B
+
+If $q_{0.75}(n)$ is the 0.75 quantile of the binomial distribution
+with $p = 0.7$, define $z = (q_{0.75}(n) - np)/\sqrt{np(1-p)}$.
+(Subtract the binomial mean and divide by the binomial standard deviation.)
+Make a line plot of $z$ on the y axis and $n$ varying from 1 to 500 on the x axis. Add a straight regression line to the plot. Describe the plot.
+
+#### Solution
+
+```{r}
+prob7 = prob7 %>% 
+  mutate(mu = n*0.7,
+         sigma = sqrt(n*0.7*0.3),
+         z = (q75 - mu)/sigma)
+
+ggplot(prob7, aes(x=n, y = z)) +
+  geom_line() +
+  geom_smooth(method = "lm")
+```
+
+- The pattern oscillates around a nearly horizontal line with the size of the oscillations decreasing as $n$ increases.
+
+```{r}
+prob7 %>% 
+  summarize(z = mean(z))
+```
+
+- The mean value of $z$ is approximately 0.68.
+
+## Normal Distributions
+
+## Overview
+
+- Normal distributions are continuous distributions
+
+- All normal distributions have the same overall shape:  symmetric, unimodal, bell-shaped
+
+- The shape of the normal density curve is completely determined by its mean ($\mu$) and its standard deviation ($\sigma$)
+
+- The density function has the following formula
+
+$$f(x) = \frac{1}{\sigma\sqrt{2\pi}} e^{-\frac{1}{2}\left(\frac{x-\mu}{\sigma}\right)^2}$$
+
+- The mean $\mu$ is located at the center and the standard deviation $\sigma$ controls the spread.
+
+```{r normal-density}
+mu = 3
+sigma = 0.5
+mu2 = 7
+sigma2 = 2
+
+gnorm(mu=mu, sigma=sigma, a=-0, b=12, color="blue",
+      fill=NULL, title=FALSE) +
+  geom_norm_density(mu = mu2, sigma = sigma2, color = "magenta") +
+  theme_minimal()
+```
+
+- Note that the commands `gnorm()` and `geom_norm_density()` are defined in the file `ggprob.R` and are not part of the **tidyverse**.
+
+## Normal Probabilities
+
+- Suppose that $X \sim \text{N}(\mu, \sigma)$
+    - this means the random variable $X$ follows a normal distribution with mean $\mu$ and standard deviation $\sigma$.
+
+- We can calculate probabilities for a Normal distribution using R:
+
+$$P(a \leq X \leq b)$$
+
+- This is the area under the density curve between $b$ and $a$
+- The function `pnorm()` calculates areas under normal curves.
+
+- The arguments in order are: 
+    - `q`: a location on the x axis
+    - `mean`: the mean of the distribution, or $\mu$, default value is 0
+    - `sd`: the standard deviation of the distribution, or $\sigma$, default value is 1
+    - `lower.tail`: logical to calculate area to the left, default value is `TRUE`
+    - `log.p`: logical to calculate log of the probability, default value is `FALSE`.
+    
+### Examples:
+
+#### Area to the left
+
+- Find $\prob(X < 80)$
+
+```{r}
+## naming arguments; I usually do not
+pnorm(q=80, mean=100, sd=25)
+## without the names
+pnorm(80, 100, 25)
+
+## gnorm is defined in ggprob.R
+## you need to call source("../../scripts/ggprob.R") in set-up for this to work
+## a is the left endpoint of the interval to fill
+## b is the right endpoint of the interval to fill
+## use NULL for the default value (all the way to the left or right)
+gnorm(mu = 100, sigma = 25) +
+  geom_norm_fill(mu = 100, sigma=25, a = NULL, b = 80) +
+  theme_minimal()
+```
+
+
+#### Area to the right
+
+- Find $\prob(X > 90)$
+
+```{r}
+## using lower.tail
+pnorm(90, 100, 25, lower.tail = FALSE)
+## using subtraction
+1 - pnorm(90, 100, 25)
+
+## first argumment is mu, second is sigma if you do not want to specify names
+## Need to repeat mu and sigma in each level: not set in aes()
+gnorm(100, 25) +
+  geom_norm_fill(100, 25, a = 90, b = NULL) +
+  theme_minimal()
+```
+
+
+#### Area between two values
+
+- Find $\prob(50 < X < 120)$
+    - Note: $\prob(50 < X < 120) = \prob(X < 120) - \prob(X < 50)$
+
+```{r}
+## use subtraction
+pnorm(120, 100, 25) - pnorm(50, 100, 25)
+
+gnorm(100, 25) +
+  geom_norm_fill(100, 25, a = 50, b = 120) +
+  theme_minimal()
+```
+
+
+#### Two tail areas
+
+- Find $\prob(|X-100| > 30)$
+    - This is $\prob(X < 70) + \prob(X > 130)$
+
+```{r}
+## using lower.tail
+pnorm(70, 100, 25) + pnorm(130, 100, 25, lower.tail = FALSE)
+## using subtraction
+pnorm(70, 100, 25) + (1 - pnorm(130, 100, 25))
+
+gnorm(100, 25) +
+  geom_norm_fill(100, 25, a = NULL, b = 70) +
+  geom_norm_fill(100, 25, a = 130, b = NULL) +
+  theme_minimal()
+```
+
+
+
+## Standard Normal Distribution and Standardization
+
+- A *standard normal distribution* is a normal distribution with mean = 0 and standard deviation = 1
+
+```{r}
+gnorm() +
+  theme_minimal()
+```
+
+
+-  If $X \sim \text{N}(\mu, \sigma)$, then $Z = \left(\frac{X-\mu}{\sigma}\right) \sim \text{N}(0, 1)$
+
+- An implication is $\prob(X < a) = \prob\left( Z < \frac{a-\mu}{\sigma}\right)$
+
+#### Example
+
+$X \sim \text{N}(100, 25)$
+
+- Find $\prob(X < 80)$
+
+```{r}
+mu = 100
+sigma = 25
+x = 80
+z = (x-mu)/25
+
+## Using X directly
+pnorm(x, mu, sigma)
+
+## Standardizing first
+## default values for the mean and sd are 0 and 1
+pnorm(z)
+
+gnorm(mu, sigma) +
+  geom_norm_fill(mu, sigma, b=x) +
+  theme_minimal()
+
+gnorm() +
+  geom_norm_fill(b=z) +
+  theme_minimal()
+```
+
+- Notice the graphs are identical except for axis labels
+- All normal curves have exactly the same shape, but they may differ in center and scale
+
+## Normal Quantiles
+
+- The p-quantile is the location `q` where the area to the left of `q` under the normal density is equal to `p`.
+
+- The R function `qnorm()` makes these calculations.
+- Arguments in order are:
+    - `p`: the probability of the quantile
+    - `mean`: mean of the distribution, $\mu$, default is 0
+    - `sd`: standard deviation of the distribution, $\sigma$, default is 1
+    - `lower.tail`: default is `TRUE`, if `FALSE` find locations for areas to the right  
+    - `log.p`: default is `FALSE`, if true, it returns natural log of the quantile
+    
+### Examples
+
+$X \sim \text{N}(100, 25)$
+
+Find the 0.1, 0.25, 0.9, 0.95, 0.975, and 0.99 quantiles of the distribution.
+
+```{r}
+p = c(0.1, 0.25, 0.9, 0.95, 0.975, 0.99)
+mu = 100
+sigma = 25
+
+qnorm(p, mu, sigma)
+```
+
+### Graphs
+
+```{r, fig.height = 12}
+## use ggarrange() to display multiple plots and map() to create a list of plots
+
+normal_plots = p %>% 
+  map(~{
+    gnorm(mu, sigma) +
+    geom_norm_fill(mu, sigma, a = NULL, b = qnorm(.x, mu, sigma)) +
+    theme_minimal()
+  })
+
+ggarrange(plots = normal_plots,
+          nrow = length(p),
+          ncol = 1)
+```
+
+### Simple Normal Calculation example
+
+> The weights of packets of cookies produced by a certain manufacturer have a normal distribution with a mean of 202 g and a standard deviation of 3 g. What is the weight that should be labeled on the packet so that only 1% of the packets are underweight?
+
+- $X \sim \text{N}(202, 3)$, want $P(X < a) = 0.01$  
+
+```{r simple-normal}
+## This gives the 1st percentile of a N(202, 3) distribution
+qnorm(0.01, mean=202, sd=3, lower.tail=TRUE)
+
+## Check
+pnorm(195.021, mean=202, sd=3) # P(X <= 195.021) = .01
+```
+
+
+## Normal approximation to the binomial distribution
+
+- If $n$ is large enough, and $p$ is not too close to 0 or 1, the binomial distribution can be approximated by the normal distribution 
+- A rule of thumb for "large enough" is if $np(1-p) \geq 10$.
+    - Under the assumptions above, if $X \sim \text{Binomial}(n,p)$, then $X \stackrel{\text{approx}}{\sim}\text{N}(np, \sqrt{np(1-p)})$
+    
+
+- Here is an example where the assumption is satisfied.
+    - $n = 100$
+    - $p = 0.5$
+    - $np(1-p) = 25$
+    
+```{r normal-approx-good}
+## Assumptions satisfied
+n = 100
+p = 0.5
+mu = n*p
+sigma = sqrt(n*p*(1-p))
+
+gbinom(n, p, scale=TRUE) +
+  geom_norm_density(mu, sigma, color = "red") +
+  theme_minimal()
+```
+
+
+
+### Example where the approximation is poor
+
+- Here is an example where the assumption is **not satisfied**.
+    - $n = 100$
+    - $p = 0.01$
+    - $np(1-p) = 0.99$
+    
+```{r normal-approx-bad}
+## Criteria not satisfied
+n = 100
+p = 0.01
+mu = n*p
+sigma = sqrt(n*p*(1-p))
+
+gbinom(n, p, scale=TRUE) +
+  geom_norm_density(mu, sigma, color = "red") +
+  theme_minimal()
+```
+
+### Correction for Continuity
+
+- If we want to calculate a binomial probability, we should just do so directly
+
+- However, if we do want to use a normal approximation, your calculation will be more accurate if add or subtract 0.5 as appropriate.
+
+- The exact binomial probability that $X=x$ is approximated by the area under a normal density curve between $x-0.5$ and $x+0.5$.
+
+- So, for example, when $n = 20$ and $p = 0.4$, the exact binomial probability $\prob(X \le 6)$ and the normal approximation.
+
+```{r}
+## Exact calculation
+pbinom(6, 20, 0.4)
+```
+
+- For the normal approximation, note that $\prob(X \le 6) = \prob(X < 7)$.
+  - The area under a normal curve to the left of 6 misses part of the binomial probability exactly at 6 and is too small.
+  - The area under a normal curve to the left of 7 includes part of the binomial probability exactly at 7 and is too big.
+  
+```{r}
+## Normal approximations without correction
+
+## moments
+mu = 20*0.4
+sigma = sqrt(20*0.4*0.6)
+
+## approximations
+pnorm(6, mu, sigma)
+pnorm(7, mu, sigma)
+```
+
+- A better approximation uses 6.5 as the endpoint for the normal approximation.
+
+```{r}
+pnorm(6.5, mu, sigma)
+```
+
+- But the exact calculation is the most accurate, of course.
+
+```{r}
+cc_example = tibble(
+  x = 0:20,
+  p = dbinom(x, 20, 0.4)
+)
+```
+
+- Approximation too small
+
+```{r}
+ggplot(cc_example, aes(x = x, y = p)) +
+  geom_col(fill = "gray") +
+  geom_norm_fill(mu = mu, sigma = sigma, b = 6, alpha = 0.5) +
+  geom_norm_density(mu, sigma, color = "blue") +
+  geom_hline(yintercept = 0) +
+  theme_minimal()
+```
+
+- Approximation too large
+
+```{r}
+ggplot(cc_example, aes(x = x, y = p)) +
+  geom_col(fill = "gray") +
+  geom_norm_fill(mu = mu, sigma = sigma, b = 7, alpha = 0.5) +
+  geom_norm_density(mu, sigma, color = "blue") +
+  geom_hline(yintercept = 0) +
+  theme_minimal()
+```
+
+- Approximation better
+
+```{r}
+ggplot(cc_example, aes(x = x, y = p)) +
+  geom_col(fill = "gray") +
+  geom_norm_fill(mu = mu, sigma = sigma, b = 6.5, alpha = 0.5) +
+  geom_norm_density(mu, sigma, color = "blue") +
+  geom_hline(yintercept = 0) +
+  theme_minimal()
+```
+
+
+---
+title: "Probability and Simulation"
+output: html_document
+---
+
+\newcommand{\E}{\mathsf{E}}
+\newcommand{\Var}{\mathsf{Var}}
+\newcommand{\SD}{\mathsf{SD}}
+\renewcommand{\prob}{\mathsf{P}}
+
+### Setup details
+
+- You will need the package **tidyverse** for this file
+- Also, install the **broman** package for the `myround()` function which actually rounds output to the requested number of digits (as a string).
+
+- This lecture use the following scripts, assumed to be in your course scripts directory.
+    - `COURSE/scripts/viridis.R`
+    - `COURSE/scripts/ggprob.R`
+
+- The file `ggprob.R` contains a number of functions for graphing probability distributions in a tidyverse-friendly manner.
+
+
+## Simulation and Probability
+
+- For many well-known distributions such as the binomial and normal distributions, there is a combination of theory and computational methods that allow us to calculate numerical values for distribution characteristics such as means, variances, and standard deviations,
+or the probabilities of various outcomes.
+- However, there are often times where either we do not know the theory or the theory does not exist for us to calculate moments or various probabilities.
+- Often times, we can use simulation in such instances to estimate these quantities.
+
+### Example 1
+
+- We begin with an example where we have learned a method.
+- Suppose that a random variable $X_1 \sim \text{Normal}(250, 30)$ meaning $\E(X) = \mu = 250$ is the mean of the distribution and that the standard deviation is $\sigma = 30$.
+- Suppose also we were interested in calculating $\prob(X > 300)$.
+- From a previous lecture, we know we just need to find the area to the right of 300 under the normal density for this distribution.
+- The base R function `pnorm()` can give us a numerical answer.
+
+```{r}
+1 - pnorm(300, 250, 30)
+```
+
+- A graph helps to visualize the answer.
+
+```{r}
+gnorm(250, 30) +
+  geom_norm_fill(250, 30, a = 300)
+```
+
+#### Simulation Solution
+
+- Now, let's say we forgot about the existence of `pnorm()`, but we did know how to use `rnorm()` to sample random variables.
+- The idea would be to sample many instances random variables with this distribution and merely count the proportion that are larger than 300.
+
+- First, we do a **tidyverse** solution where we create a data frame with the random sample in a column and then use **dplyr** commands to calculate the desired summary.
+  - We will use a simulation size of 1,000,000 and repeat a few times to get a sense of the error due to simulation.
+
+```{r}
+## setting the seed here so that we get the same values each time we knit
+## We will only set the seed once in this file
+set.seed(2022)
+
+B = 1000000
+prob1 = tibble(
+  x1 = rnorm(B, 250, 30),
+  x2 = rnorm(B, 250, 30),
+  x3 = rnorm(B, 250, 30),
+  x4 = rnorm(B, 250, 30))
+
+prob1_prob = prob1 %>% 
+  summarize(p1 = mean(x1 > 300),
+            p2 = mean(x2 > 300),
+            p3 = mean(x3 > 300),
+            p4 = mean(x4 > 300))
+prob1_prob
+```
+
+- It appears that if we round off our answers to four decimal places, different simulations give slightly different answers.
+- Rounding to three decimal places, we are reasonably confident that the probability is 0.048.
+- Compare again to the exact answer rounded to four decimal places.
+
+```{r}
+round(1 - pnorm(300, 250, 30), 4)
+```
+
+#### Base R Solution
+
+- We could have repeated the same calculation using base R.
+- In this course, we tend to show **tidyverse** solutions most of the time, but knowing how to do similar calculations in base R is helpful.
+
+```{r}
+## A base R solution
+prob1_base = mean( rnorm(B, 250, 30) > 300 )
+round(prob1_base, 4)
+```
+
+### Example 2
+
+- Next, let's try another example where we have theory to tell us the exact number.
+- Let $X_2 \sim \text{Binomial}(500, 0.2)$ so the mean is $\E(X_2) = 500 \times 0.2 = 100$ and the standard deviation is $\sigma = \sqrt{500(0.2)(0.8)} \doteq `r myround(sqrt(500*0.2*0.8), 2)`$.
+- Find $\prob(X \ge 120)$.
+
+- As a review, let's do the calculation exactly first with `pbinom()`.
+
+```{r}
+## Notice P(X >= 120) = 1 - P(X <= 119)
+prob2 = 1 - pbinom(119, 500, 0.2)
+prob2
+```
+
+- Here is a simulation based solution
+
+```{r}
+B = 1000000
+prob2_df = tibble(
+  x = rbinom(B, 500, 0.2)
+)
+
+prob2_sim = prob2_df %>% 
+  summarize(prob2 = mean(x >= 120)) %>% 
+  pull(prob2)
+
+prob2_sim
+```
+
+- In this example, we get the same value when rounded off to four digits, but that may have been a bit lucky as we might have easily been off in the fourth digit.
+  - But the simulation was large enough, it appears, to be highly probable in repeated simulations to have been accurate to three decimal places.
+  
+### Example 3
+
+- Here is an example that delves into random sampling.
+- Suppose that $X_1, X_2, \ldots, X_{10}$ each have a $\text{Normal}(100, 20)$ distribution and that they are mutually independent.
+  - Informally, *mutually independent* means that the realized values of any of the random variables have no effect on the probabilities of the values of the others.
+- Let $\bar{X}$ be the sample mean, $\bar{X} = (X_1 + \cdots + X_{10})/10$.
+- Find $\prob(95 < \bar{X} < 105)$.
+
+- We may write this set-up as $X_i \overset{\text{iid}}{\sim} \text{Normal}(100, 20), \text{ for } i = 1,\ldots,10$.
+  - The text "iid" is short for *independent and identically distributed*, a phrase used often when studying probability and mathematical statistics more formally.
+
+#### Solution
+
+- If we had some theory that told us that $\bar{X}$ had a normal distribution with a mean and standard deviation we could calculate,
+it would be possible to answer this question with a direct calculation.
+- In the absence of this theory, let's do a simulation.
+- In this solution, we will use the function `map_dbl()` which is from the **tidyverse** package **purrr** which is used for iteration.
+  - The subscript `_dbl` specifies that the return value is a vector of numerical values (double precision floating point values).
+- The first argument will be the items we want to iterate over,
+in this case a vector of length $B = 1,000,000$.
+- The second argument is a function to call.
+  - Here, we just need to repeated taking the mean of a random sample of 10 normal random variables which we can do with `mean(rnorm(10, 100, 20))`.
+- The code chunk below simulates each sample and calculates and saves the mean, without retaining the individually sampled variables.
+  - We save the means of the simulated samples in a single column of a tibble.
+  - It takes a few seconds to run.
+
+```{r}
+B = 1000000
+prob3_df = tibble(
+  xbar = map_dbl(1:B, ~mean(rnorm(10, 100, 20))))
+```
+
+- Then compute the observed proportion of sample means between 95 and 105.
+
+```{r}
+prob3 = prob3_df %>% 
+  summarize(p = mean( between(xbar, 95, 105))) %>% 
+  pull(p)
+
+prob3
+```
+
+- We see that the answer is close to 0.571.
+
+#### Visualize
+
+- We will visualize the answer by graphing an estimated density of the sample in blue, and then overlaying a normal density with the mean and standard deviation which match these calculated summary statistics, and shading the area between 95 and 105.
+
+```{r}
+prob3_sum = prob3_df %>% 
+  summarize(mu = mean(xbar),
+            sigma = sd(xbar))
+
+mu = prob3_sum %>% 
+  pull(mu)
+
+sigma = prob3_sum %>% 
+  pull(sigma)
+
+mu
+sigma
+```
+
+- Not surprisingly, the sample mean of the 1,000,000 simulated sample means is close to 100, the mean of each $X_i$.
+- The standard deviation is less than $\sigma = 20$ but does not look close to any simple number
+  - (More on this soon!)
+  
+- Here is the plot.
+
+```{r}
+ggplot(prob3_df, aes(x = xbar)) +
+  geom_density(color = "blue") +
+  geom_norm_density(mu, sigma, color = "red") +
+  geom_norm_fill(mu, sigma, a = 95, b = 105, fill = "red") +
+  geom_hline(yintercept = 0) +
+  xlab("Sample Mean") +
+  ylab("Density") + 
+  ggtitle("Example 3: normal sample mean")
+```
+
+#### Observations
+
+- Notice that the estimated density curve is nearly a perfect match for the theoretical normal density with these moments.
+- This is not a coincidence:
+  - When a random sample of size $n$ is sampled from a normal distribution with mean $\mu$ and standard deviation $\sigma$, the sample mean $\bar{X}$ has a normal distribution with mean $\mu$ and standard deviation $\sigma / \sqrt{n}$.
+  - We write this succinctly as $\bar{X} \sim \text{Normal}(\mu, \sigma / \sqrt{n})$
+- For our numerical example, $\text{SD}(\bar{X}) = 20 / \sqrt{10} \doteq `r myround(20/sqrt(10), 3)`$ which is very close to our observed sample standard deviation of `r myround(sigma, 3)`.
+
+- If we had used theory and not simulation,
+we could have calculated the probability like this.
+
+```{r}
+pnorm(105, 100, 20 / sqrt(10)) - pnorm(95, 100, 20 / sqrt(10))
+```
+
+### Example 4
+
+- Suppose that the random variables $U_1, \ldots, U_{20}$ are each uniformly distributed between 0 and 10:
+$U_i \overset{\text{iid}}{\sim} \text{Uniform}(0,10) \text{ for } i = 1, \ldots, 20$.
+- What is the probability that the sum $S_{20} = U_1 + \cdots + U_{20}$ is larger than 115?
+
+#### Solution
+
+- The $\text{Uniform}(0,10)$ distribution has a density equal to 0.1 between 0 and 10 and is 0 elsewhere.
+
+```{r}
+unif_0_10 = tibble(x = c(-1, 0, 10, 11),
+                   y = c(0, 0.1, 0.1, 0))
+
+ggplot(unif_0_10, aes(x=x, y=y)) +
+  geom_step(color = "blue") +
+  geom_hline(yintercept = 0) +
+  xlab("U") +
+  ylab("Density") +
+  ggtitle("Uniform(0,10) Distribution")
+```
+
+- Let's solve using simulation
+    - Generate a large number $B$ of samples of size 20 from this uniform distribution
+    - Find the sum of the 20 values in each sample
+    - Save these $B$ sample sums
+    - Calculate the proportion that are larger than 115.
+    
+```{r}
+B = 1000000
+
+prob4_df = tibble(
+  s20 = map_dbl(1:B, ~sum(runif(20, 0, 10))))
+```
+    
+- Estimate the probability
+
+```{r}
+p4 = prob4_df %>% 
+  summarize(p = mean(s20 > 115)) %>% 
+  pull(p)
+
+p4
+```
+
+- The probability estimated by simulation is about `r myround(p4, 3)`.
+
+#### Theory
+
+- An exact theoretical calculation is quite difficult.
+- But, let's take a look at the estimated density of the sampled sums and compare to a normal distribution where the mean and standard deviation match the observed values.
+
+```{r}
+prob4_sum = prob4_df %>% 
+  summarize(mu = mean(s20),
+            sigma = sd(s20),
+            p = mean(s20 > 115))
+prob4_sum
+
+mu = prob4_sum$mu
+sigma = prob4_sum$sigma
+
+mu
+sigma
+```
+
+#### Plot
+
+```{r}
+ggplot(prob4_df, aes(x = s20)) +
+  geom_density(color = "blue") +
+  geom_norm_density(mu, sigma, color = "red") +
+  geom_norm_fill(mu, sigma, a = 115, fill = "red") +
+  geom_hline(yintercept = 0) +
+  xlab("Sum") +
+  ylab("Density") +
+  ggtitle("Sum of Uniforms and Normal Approximation")
+```
+
+- Again, the exact probability is well-approximated by an area under a normal density curve because the exact distribution of the sum of 20 uniform random variables is nearly normal.
+  - This is not a coincidence!
+  
+#### Theory
+
+- The exact distribution of the sum of uniform random variables is **not normal** in general.
+- But:
+  - $\E(S_{20})$ is exactly equal to the sum of the means $\E(U_i)$, or $20 \times 5 = 100$; and
+  - $\Var(S_{20})$ is exactly equal to the sum of the variances of the $\{U_i\}$, $\Var(S_{20}) = 20 \times 100/12 \doteq 166.67$, meaning that the exact standard deviation is $\SD(S_{20} = \sqrt{2000/12} \doteq 12.9)$.
+
+- Using the normal approximation,
+
+```{r}
+1 - pnorm(115, 100, sqrt(2000/12))
+```
+
+- So the simulated probability differed from the theoretical value by about one in the third significant digit, a small relative error.
+
+### Central Limit Theorem
+
+- The past two problems highlight a fundamental result from probability and mathematical statistics called *the central limit theorem*.
+- A rigorous statement of the theorem states how the exact probability distribution of a sample mean converges to a normal distribution as the sample size increases to infinity.
+- A practical statement is as follows:
+
+> The probability distribution of a sample mean of size $n$ from an iid random sample from a distribution with mean $\mu$ and standard deviation $\sigma$ has mean equal to $\mu$, standard deviation equal to $\sigma/\sqrt{n}$. Furthermore, if $n$ is sufficiently large, this distribution of the sample mean is approximately normal.
+
+- In practice, $n$ need not be all that large.
+- If the base distribution is fairly symmetric, then the normal approximation can be very good for small to moderate $n$ (say, a few dozen or less).
+- However, if the base distribution is very skewed or has a very high probability on a single value, then $n$ may need to be substantially larger before the normal approximation is accurate.
+
+### Example 5
+
+- Here is an example where the normal approximation fails, but simulation can still obtain an accurate value.
+
+- The *gamma* distribution is the distribution of a positive continuous random variable with a density function equal to
+$f(x) = C x^{\alpha-1} \mathrm{e}^{-\lambda x}, \ x > 0$
+where $\alpha>0$ and $\lambda>0$ are positive parameters which determine the shape and scale of the distribution, respectively, and $C$ is a constant (depending on the values of $\alpha$ and $\lambda$, but not $x$) so that the total area under the density curve equals one.
+
+- When $\alpha$ is small, the gamma density is strongly skewed to the right.
+  - For example, when $\alpha = 0$, the density is the tail of an exponential function.
+
+- The mean of the distribution is $\mu = \alpha / \lambda$ and the variance is $\sigma^2 = \alpha / \lambda^2$ so that the standard deviation is $\sigma = \sqrt{\alpha}/\lambda$.
+Here is a graph of the density when $\alpha = 0.9$ and $\lambda = 0.09$.
+The mean is $\mu = 0.9 / 0.09 = 10$ and the standard deviation is $\sigma = \sqrt{0.9}/0.09 \doteq `r myround(sqrt(0.9)/0.09, 2)`$.
+
+```{r, echo = FALSE}
+tibble(
+  x = c(0.01, seq(0.1, 50, 0.1)),
+  y = dgamma(x, 0.9, 0.09)) %>% 
+ggplot(aes(x=x, y=y)) +
+  geom_line(color = "blue") +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  xlab("x") + 
+  ylab("Density") +
+  ggtitle("Gamma(0.9, 0.09) Distribution")
+```
+
+#### Problem
+
+- Suppose that $X_1, \ldots, X_4 \overset{\text{iid}}{\sim} \text{Gamma}(0.9, 0.09)$
+- Estimate the probability that the sample mean is larger than 20.
+
+#### Simulation
+
+- Let's first solve by simulation.
+- We can use the `rgamma()` function to generate random gamma variables and use `map_dbl()` as earlier to take sample means.
+
+```{r}
+B = 1000000
+prob5_df = tibble(
+  xbar = map_dbl(1:B, ~mean(rgamma(4, 0.9, 0.09))))
+```
+
+- Plot the density
+- Add a normal curve
+- Theory tells us that $\E(\bar{X}) = 10$ and $\SD(\bar{X}) = \frac{\sqrt{0.9}/0.09}{\sqrt{4}} \doteq `r myround(sqrt(0.9)/0.09/2, 2)`$
+
+```{r}
+alpha = 0.9
+lambda = 0.09
+mu = alpha/lambda
+sigma = sqrt(alpha) / lambda
+
+ggplot(prob5_df, aes(x=xbar)) +
+  geom_density(color = "blue") +
+  geom_norm_density(mu, sigma/2, color = "red") +
+  geom_norm_fill(mu, sigma/2, a = 20, fill = "red") +
+  geom_hline(yintercept = 0) +
+  xlab("Sample Mean") +
+  ylab("Density") +
+  ggtitle("Skewed Gamma Distribution Sample Mean, n=4")
+```
+
+- We can see that the simulated density (blue) is not well approximated by the normal curve with the theoretical mean and standard deviation.
+- The true probability will be much larger than that we would calculate using the central limit theorem.
+
+##### Simulation-based probability calculation
+
+```{r}
+prob5 = prob5_df %>% 
+  summarize(p = mean(xbar > 20))
+
+prob5
+```
+
+##### Central Limit Theorem
+
+```{r}
+mu
+sigma
+
+1 - pnorm(20, mu, sigma/sqrt(4))
+```
+
+- The CLT value is less than half the simulation-based calcultion.
+
+##### True Value
+
+- Using theory beyond the scope of this course,
+we can calculate the exact probability.
+
+```{r}
+prob5_exact = 1 - pgamma(20, 4*alpha, 4*lambda)
+```
+
+- The simulated value `r myround(prob5, 4)` is very close to the true theoretical value `r myround(prob5_exact, 4)`.
+
+> Simulation can be very accurate without any knowledge of the theory to make exact calculations and without knowing the true mean and standard deviation.
+
+- But, the CLT is handy
+
+> When the sample size $n$ is large enough for a given problem, then a simple area under a normal curve can be very accurate.
+
+### Example 6
+
+- Here is another example with $n=4$ where the central limit theorem is accurate.
+- We use the gamma distribution again, but set $\alpha = 9$ and $\lambda = 0.9$ so that the mean $\mu = 10$ again and $\sigma = \sqrt{9}/0.9 \doteq `r myround(3/0.9, 2)`$.
+- Find $\prob(\bar{X} > 12)$.
+
+```{r, echo = FALSE}
+alpha = 9
+lambda = 0.9
+mu = alpha/lambda
+sigma = sqrt(alpha) / lambda
+
+tibble(
+  x = c(0.01, seq(0.1, 20, 0.1)),
+  y = dgamma(x, alpha, lambda)) %>% 
+ggplot(aes(x=x, y=y)) +
+  geom_line(color = "blue") +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  xlab("x") + 
+  ylab("Density") +
+  ggtitle("Gamma(9, 0.9) Distribution")
+```
+
+#### Simulation
+
+```{r}
+B = 1000000
+prob6_df = tibble(
+  xbar = map_dbl(1:B, ~mean(rgamma(4, alpha, lambda))))
+```
+
+- Plot the density
+- Add a normal curve with the same mean and sd
+
+```{r}
+alpha = 9
+lambda = 0.9
+mu = alpha/lambda
+sigma = sqrt(alpha) / lambda
+
+ggplot(prob6_df, aes(x=xbar)) +
+  geom_norm_density(mu, sigma/2, color = "red") +
+  geom_norm_fill(mu, sigma/2, a = 12, fill = "red") +
+  geom_density(color = "blue") +
+  geom_hline(yintercept = 0) +
+  xlab("Sample Mean") +
+  ylab("Density") +
+  ggtitle("More Symmetric Gamma Distribution, Sample Mean, n=4")
+```
+
+- We can see that the simulated density (blue) is fairly well approximated by the normal curve with the theoretical mean and standard deviation,
+even if not perfect, and $n=4$ only!
+- The graph shows which intervals the areas are nearly the same and where they may differ by a bit.
+- For a moderately large $n$, such as $n=40$, the normal approximation would have been much more accurate for nearly any interval.
+
+
+
+##### Comparison
+
+```{r}
+prob6 = prob6_df %>% 
+  summarize(simulation = mean(xbar > 12),
+            clt = 1 - pnorm(12, mu, sigma/sqrt(4)),
+            exact = 1 - pgamma(12, 4*alpha, 4*lambda))
+
+prob6
+```

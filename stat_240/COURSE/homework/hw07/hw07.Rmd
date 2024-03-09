@@ -1,0 +1,281 @@
+---
+author: "YOUR NAME HERE"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE,
+                      warning = FALSE, error = TRUE, fig.height = 3)
+library(tidyverse)
+library(kableExtra)
+source("../../scripts/viridis.R")
+source("../../scripts/ggprob.R")
+```
+
+\newcommand{\E}{\mathsf{E}}
+\newcommand{\Var}{\mathsf{Var}}
+\renewcommand{\prob}{\mathsf{P}}
+
+
+## Assignment 7
+
+#### Due Sunday, April 2, 11:59 PM CT
+
+### Preliminaries
+
+- Directories
+    - COURSE/homework/
+    - COURSE/homework/hw07/
+    - COURSE/data/
+    - COURSE/scripts/
+- Files
+  - COURSE/homework/hw07/hw07.Rmd
+  - COURSE/scripts/viridis.R
+  - COURSE/scripts/ggprob.R
+
+### Aims
+
+- Practice probability and the binomial distribution
+
+### Problems
+
+  1. A discrete random variable $X$ has possible values 0, 1, 2, 3, 4, 5, 6, 7, 8 with the following partial probability distribution.
+The missing probabilities $\prob(X=7)$ and $\prob(X=8)$ are equal to each other.
+
+```{r, echo = FALSE}
+set.seed(20221021)
+x = 0:8
+p = rnorm(7,5,2.1)
+p = sort(round(p / sum(p) * 0.84, 2))
+p1 = tibble(x = x, p = c(p, rep(NA,2)))
+
+p1_tab = p1 %>% 
+  mutate(x = str_c(x)) %>% 
+  pivot_wider(names_from = x, values_from = p) %>% 
+  mutate(x = "P(X=x)", .before = `0`) 
+
+p1_tab %>% 
+  kable() %>% 
+  kable_styling(position = "center", full_width = FALSE)
+```
+
+- Put the values `x = 0:8` and the tabled probabilities `p` into a data frame (use `tibble()`).
+
+```{r}
+p1_tab
+x
+p
+p1
+#q1_tibble=tibble(x,p1_tab$p)
+
+#anohter way to use p1 directly
+q1_tibble=p1
+q1_tibble
+#another way to change the already formed tibble into the new tibble
+#p1_tab_longer
+#q1_tibble=as_tibble()
+#make the sum and take half and store in the  values which are NA
+
+#verification
+#get hte sum of probabilities
+
+#%>% summarize(sum=sum(p)) %>% pull(sum))
+```
+
+- Write code to calculate the missing values for $\prob(X=7) = \prob(X = 8)$ and replace the missing values with these calculated values into your data frame.
+
+```{r}
+sum=q1_tibble %>% filter(x!=7 & x!=8) %>% summarize(sum=sum(p)) %>% pull(sum)
+sum
+q1_tibble<-q1_tibble %>% mutate(p=case_when((x==7|x==8)~(1-sum)/2,TRUE~p))
+q1_tibble
+```
+
+- Verify that the sum of all probabilities is 1.
+
+```{r}
+q1_tibble %>% summarize(sum=sum(p))
+```
+
+- Calculate the mean, variance, and standard deviation of this distribution.
+
+```{r}
+#weighted mean=sum of product of all the x*p values
+stats_final=q1_tibble %>% mutate(mean=x*p,variance=((x-mean)^2)*p,sigma=sqrt(variance)) %>% summarize(mean_final=sum(mean),variance_final=sum(variance),sigma_final=sum(sigma))
+stats_final
+```
+
+
+
+
+
+
+  2. Suppose you have a random variable $X \sim \text{Binomial}(120, 0.2)$.
+
+- 2a. Calculate and report the mean and standard deviation of the distribution.
+
+```{r}
+n=120
+p=0.2
+x=rbinom(n,n,p)
+#ASK:WHAT SHOULD WE GIVE AS THE FIRST ARGUMENT TO THE ABOVE METHOD-NO NUMBER OF DATA POINTS TO BE TAKEN IS SPECIFIED
+x=data.frame(x)
+x %>% summarize(mean=n*p,sigma=sqrt(mean*(1-p)))
+#print(mean=n*p,sigma=sqrt(120*0.2*0.8))
+```
+
+- 2b. Calculate and report the probability that the random variable is exactly equal to 20, $\prob(X = 20)$.
+
+```{r}
+#get p(<=20)-p(<=19) to get p(20)
+x
+print(dbinom(20,n,p))
+print(pbinom(20,n,p)-pbinom(19,n,p))#do for <=20-<=19
+```
+
+- 2c. Calculate and report the probability that $X$ equals 20 or more, $\prob(X \ge 20)$.
+
+```{r}
+print(1-pbinom(19,n,p))
+```
+
+- 2d. Draw a graph of the binomial distribution with vertical lines at the mean (red and dashed), and 1, 2, and 3 standard deviations above and below the mean (red and dotted).
+
+
+```{r}
+#MAKE A GRAPH BY GBINOM AND THEN USE C() TO GET -1,+1 AND 02,+2 AND -3,+3 AT SD VALUES
+x1=x$mean
+x1
+mean1=n*p
+variance1=mean1*(1-p)
+variance1
+sigma1=sqrt(variance1)
+sigma1
+gbinom(n,p,scale=TRUE)+ geom_vline(xintercept=mean1,linetype="dashed",color="red",alpha=0.5)+geom_vline(xintercept=c(-1,1)*sigma1+mean1,linetype="dotted",color="red")+geom_vline(xintercept=c(-2,2)*sigma1+mean1,linetype="dotted",color="red")+geom_vline(xintercept=c(-3,3)*sigma1+mean1,linetype="dotted",color="red")
+```
+
+
+
+
+
+  3. What is the probability that $X$ from Problem 2 is within one, two, and three standard deviations of the mean? Round each probability to four decimal places.
+
+```{r}
+#patern:
+#print->format->round+nsmall
+print(format(round((pbinom(sigma1+mean1,n,p)-pbinom(-sigma1+mean1,n,p)),4),nsmall=4))
+#print(pbinom(sigma1+mean1,n,p)-pbinom(-sigma1+mean1,n,p))
+print(format(round((pbinom(mean1+(2*sigma1),n,p)-pbinom(mean1-(2*sigma1),n,p)),4),nsmall=4))
+#print(pbinom(2*sigma1*mean1,n,p)-pbinom(sigma1*-2*mean1,n,p))
+#print(pbinom((3*sigma1)+mean1,n,p)-pbinom(-(3*sigma1)+mean1,n,p))
+print(format(round((pbinom(mean1+(3*sigma1),n,p)-pbinom(mean1-(3*sigma1),n,p)),4),nsmall=4))
+#ASK:LAST ANSWER GIVING WRONG ANSWER-WE SHOULD GET 0.0000 BUT GETTING 1.0000
+```
+Probability of being at 1 sd from the mean=0.6960
+Probability of being at 2nd sd from the mean=0.9486
+Probability of being at 3rd sd from the mean=0.9979
+
+
+
+
+
+
+  4. The following code makes a graph of the cumulative distribution function for the $\text{Binomial}(7, 0.3)$ distribution, that is $F(x) = \prob(X \le x)$. This is the function which is calculated by the base R function `pbinom()`.
+
+- Modify the code to add a horizontal red dotted line at 0.4.
+
+
+```{r}
+prob4 = tibble(
+  x = seq(-1,8,1),
+  p = dbinom(x, 7, 0.3),
+  cdf = pbinom(x, 7, 0.3))
+
+ggplot(prob4, aes(x = x, y = cdf )) +
+  geom_step(color = "blue") +
+  geom_hline(yintercept = 0) +geom_hline(yintercept=0.4,linetype="dotted",color="red")+
+  scale_x_continuous(breaks = 0:7) +
+  xlab("x") +
+  ylab("Probability") +
+  ggtitle("Binomial(7, 0.3) distribution CDF") +
+  theme_minimal()
+```
+
+- Calculate the 0.4 quantile of the $\text{Binomial}(7, 0.3)$
+
+```{r}
+print(qbinom(0.4,7,0.3))
+```
+
+- Explain how the value of the quantile is related to the red dotted line which you added to the plot.
+
+> the quantile x=2 is crossed by the red dotted line at value 0.4
+thus x=2 is the 40th percentile of the distribution
+
+- Use the graph to determine the 0.75 quantile of this distribution.
+Then verify your observation with a calculation.
+
+```{r}
+print(qbinom(0.75,7,0.3))
+
+print(qbinom(0.25,7,0.3))
+print(qbinom(0.5,7,0.3))
+```
+
+if the 0.4 quantile is at 2 then the 0.75 can be around 2.8-3.2 at my best guess as i presume that the middle 0.5 quantile might be somewhere around 2.1
+
+
+
+  5. In a large population of likely voters, the proportion of voters who plan to vote for candidate A is $p = 0.52$. In a random sample of 600 likely voters, what is the probability that the proportion of voters who plan to vote for candidate A is less than 50% (the number of such voters is less than 300)?
+  
+```{r}
+n2=600
+p2=0.52
+print(pbinom((n2/2)-1,n2,p2))
+```
+
+
+
+
+  6. Basketball player 1 makes 80% of their free throws and basketball players 2 makes 70% of their free throws. Assume all of their free throws attempts are independent. If each player takes ten free throws and $X$ is the total number of free throws they make, does $X$ have a binomial distribution? If yes, specify the parameters $n$ and $p$. If not, explain why not.
+  
+> both the probability of getting a free throw good and the number of trials conducted are independent of both the players or the outcome of previous throws' results.
+the probability of gettting a hit is always the same and so the variable x has a binomial distribution
+here x is defined for one single player and so the values of x for both the players is 10 and value of p for player 1 is 0.8 while for player 2 is 0.7
+
+
+
+
+  7. What is the smallest number of coin tosses $n$ of a fair coin so that the chance of getting 50 or more heads exceeds 90%?  (You may need to do some trial and error. Alternatively, think of creating a data frame with a column `n` and a column for the probability and using this to find the answer.)
+
+```{r}
+p=0.5
+trials=as.data.frame(x=1-pbinom(49,1:1000,p))
+quest_tibble=data.frame(tibble(n=1:1000))
+#to get >=50 w get <=49 and then subtract this from 1
+quest_tibble<-quest_tibble %>% mutate(p1=1-pbinom(49,n,p)) %>% filter(p1>=0.9)
+print(quest_tibble %>% slice_min(n) %>% select(n))
+trials
+```
+
+
+
+
+  8. The random variable $X$ has the $\text{Binomial}(100, 0.2)$ distribution.
+  
+- Find an integer $a$ so that $P(X \le a) \ge 0.5$ and $P(X \ge a) \ge 0.5$.
+- Show the values of $a$, $P(X \le a)$, and $P(X \ge a)$.
+
+```{r}
+quest8=data.frame(tibble(a=1:1000))
+quest8<-quest8 %>% mutate(left_side=pbinom(a,100,0.2),right_side=1-pbinom(a-1,100,0.2)) 
+#filter(left_side==right_side)
+print(quest8 %>% filter(left_side>=0.5 & right_side>=0.5))
+#ASK:TO GET THE RIGHT PART WE DO A-1 AS WE WANT TO INCLUDE THE MIDDLE VALUE AGAIN
+
+```
+
+
+  
+
+

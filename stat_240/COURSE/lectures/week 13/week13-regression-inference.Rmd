@@ -1,0 +1,964 @@
+---
+title: "Introduction to Regression (continued)"
+output: html_document
+---
+This R Markdown document includes contributions by Professor Jessi Kehe.
+
+\renewcommand{\prob}{\mathsf{P}}
+\newcommand{\E}{\mathsf{E}}
+\newcommand{\Var}{\mathsf{Var}}
+\newcommand{\SD}{\mathsf{SD}}
+\newcommand{\SE}{\mathsf{SE}}
+
+### Setup details
+
+- This lecture use the following scripts, assumed to be in your course scripts directory.
+    - `COURSE/scripts/viridis.R`
+    
+- You also need the following data sets
+    - `COURSE/data/lions.csv`
+    - `COURSE/data/height.txt`
+    - `COURSE/data/exoplanets-clean-through-2022.csv`
+
+- You will need the package **tidyverse** for these lectures.  
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      error = TRUE, fig.height = 4)
+library(tidyverse)
+library(kableExtra)
+
+source("../../scripts/viridis.R")
+source("../../scripts/ggprob.R")
+
+theme_set(theme_minimal())
+```
+
+
+
+
+
+# Overview of Exoplanet Mass-Radius Relationship
+
+In previous lectures, we explored data from the NASA Exoplanet Archive.  Two variables that are useful for characterizing an exoplanet are mass and radius.
+
+The two most prolific methods for detecting exoplanets are the Transit Method and the Radial Velocity Method. 
+
+- The Transit Method works by monitoring the total light output of a star across time.  
+    - If a planet crosses between the star in the line-of-sight of the telescope, we may observe a dip in the light output of the star.  
+    - A dip that repeats at a regular period suggests that a planet may be present.
+    - Often at least three periodic dips are necessary for the detection to be considered credible.
+    - Here is a YouTube video that illustrates the Transit Method:  https://youtu.be/RrusIZaWDW8  
+    - The depth of the transit (i.e., the depth of the dip in the light output) can be used to estimate the planet's radius relative to the host star.
+    
+- The Radial Velocity (RV) Method looks for a wobble in the star suggesting an object may be orbiting it.  
+    - The host star is observed on multiple nights (often 30 or more) and a spectrum is collected using a spectrograph each nights (sometimes multiple times in a night).  
+    - From the observed spectrum, some techniques are used to estimate how fast the star was moving toward or away from the observed at the time the observation was collect (i.e., the radial velocity is estimated).  
+    - The estimated radial velocities are plotted against time.  If the points follow a particular pattern, it suggests the motion of the star may be due to a planet orbiting.  
+    - Here is a YouTube video that illustrates the RV Method:  https://youtu.be/tUzDKlaTHFM  
+    - Some properties of the shape of the fit RV curve can be used to estimate the mass of the orbiting exoplanet; more precisely, the minimum mass of the planet can be estimated.
+    
+    
+### Data
+
+- Read in the exoplanet data, skipping the rows with meta data
+- Select a subset of variables and rename them
+
+```{r}
+## Read in the csv file
+## Select confirmed planets, rename some variables
+planets = read_csv("../../data/exoplanets-clean-through-2022.csv")
+```
+    
+
+### Mass-Radius Relationship
+
+The *mass-radius relationship* of exoplanets is the relationship between exoplanets’ radius, R, their mass, M.
+
+Modeling the relationship between mass and radius is important for the following reasons:
+
+- Prediction  
+    - The model can be used to predict a planet’s mass given its radius measurement (or vice versa)
+
+    
+```{r}
+## Number of mass and radius estimates
+planets %>%
+  select(mass, radius) %>%
+  summarize_all(function(x) sum(!is.na(x)))
+```
+    
+- Learning about exoplanets compositions  
+    - Planet compositions can be inferred by their density  
+    - Exoplanets can have a range of compositions such as rocky or gaseous  
+    - Knowing about planet composition may help to understand planetary formation and evolution processes  
+    - For more information about planet compositions, see [exoplanet compositions](http://astro140.courses.science.psu.edu/theme4/census-and-properties-of-exoplanets/exoplanet-composition/)
+    
+    
+### Plot Radius vs. Mass - quick look 
+
+Let's take a quick look at what the Mass-Radius relationship looks like for our exoplanet data.  We'll talk later about a way to model these data.
+
+```{r}
+## How many observations do we have with both mass and radius estimates?
+planets %>%
+  select(mass, radius) %>%
+  drop_na() %>%
+  nrow()
+
+
+ggplot(planets, aes(x = mass, y = radius)) +
+  geom_point() +
+  xlab("Mass (Earth Mass)") +
+  ylab("Radius (Earth Radius)") +
+
+```
+
+It's hard to see any clear pattern in this plot.  Let's adjust the axis scales to see if that helps.
+
+
+```{r}
+ggplot(planets, aes(x = mass, y = radius)) +
+  geom_point() +
+  xlab("Mass (Earth Mass)") +
+  ylab("Radius (Earth Radius)") +
+  scale_x_log10() +
+  scale_y_log10() +
+  geom_smooth(se=FALSE) +
+  geom_smooth(method="lm", se=FALSE, color="magenta")
+
+```
+
+Now we can see a bit more of a relationship between radius and mass on this log10 scale.
+
+The *general* pattern is that there is a positive association between log10(radius) and log10(mass).
+
+
+
+
+
+# Power-Law Relationship 
+
+One of the popular models used for the Mass-Radius relationship is a power-law relationship:
+
+$$
+y = C \times x^\theta
+$$
+where $y$ is the response variable, $x$ is the explanatory variable, $C$ is a scaling factor, and $\theta$ is the power law coefficient.
+
+
+#### Examples of power laws
+
+```{r}
+power_law = function(theta){
+  df = tibble(x = seq(0, 10, by = .1),
+               y =x^theta)
+  gg = ggplot(df, aes(x,y)) +
+    geom_line() +
+    ggtitle(paste0("Power law exponent: ", theta)) +
+    theme_bw() +
+    theme(text=element_text(size=20))
+  return(gg)
+}
+
+power_law(1)
+power_law(.5)
+power_law(2)
+```
+
+
+#### Power-law model for Mass-Radius relationship
+
+
+While we will consider mass on the y-axis and radius on the x-axis, astronomers will often plot and model these the other way (with radius on the y-axis).  
+
+Astronomers have found that the power law relationship between radius and mass is not constant across the range of values, but instead there seems to be a different power law exponent for different mass ranges. 
+
+- This results in what is known as a *broken power law model* where different ranges of the data have different power law parameters.  
+- We will only consider a subset of the data where the power law exponent is thought to be constant.  We define this subset below.  
+- The range for masses we will consider is between 2 and 127 Earth masses.  This range comes from work by Jingjing Chen and David Kipping in 2016 where they took a data-driven approach to detect *change points* in the broken power law model.  
+    - Chen, J. and Kipping, D., 2016. Probabilistic forecasting of the masses and radii of other worlds. The Astrophysical Journal, 834(1), p.17.  
+    - In their model, they considered radius vs. mass, but found the noted mass range to be consistent with previous work looking for change points in radius.
+    
+    
+Below we define the data subset we will use for our model and plot radius vs. mass.
+
+```{r}
+mr = planets %>%
+  filter(between(mass, 2, 127)) %>%
+  drop_na()
+
+ggplot(mr, aes(x = mass, y = radius)) +
+  geom_point() +
+  xlab("Mass (Earth Mass)") +
+  ylab("Radius (Earth Radius)") +
+  scale_x_log10() +
+  scale_y_log10() +
+  geom_smooth(se=FALSE) +
+  geom_smooth(method="lm", se=FALSE, color="magenta")
+```
+
+
+
+
+# Fitting the Power Law Model
+
+We already saw the form of the power law relationship is $y = C \times x^\theta$. Now we'd like to turn this into a statistical model that we can use for the exoplanet data.
+
+The statistical model we will actually fit is going to use a log10 transformation of the power law relationship in order to make the form linear:
+$$
+\begin{align*}
+y_i = \log10(r_i) & = \log10(C) + \theta\log10(m_i) + \varepsilon_i \\
+& = \log10(C) + \theta x_i + \varepsilon_i, i = 1, \ldots, n.
+\end{align*}
+$$
+In this model, the response variable $y_i = \log10(r_i)$ is the $\log10$(radius) for exoplanet $i$, the explanatory variable $x_i = \log10(m_i)$ is the $\log10$(mass) for exoplanet $i$, $\log10(C)$ is the (unknown) intercept, $\theta$ is the (unknown) slope, and $\varepsilon_i$ is the random error for exoplanet $i$.
+
+- Now we have a linear model and can use methods we've already learned to fit the model!
+
+```{r}
+lm1 = lm(log10(radius) ~ log10(mass), data = mr)
+summary(lm1)
+```
+
+The estimated intercept is `r round(coef(lm1)[1],3)` and the estimated slope is `r round(coef(lm1)[2],3)`.
+
+Let's check out our fit model on a plot:
+
+```{r}
+ggplot(mr, aes(x = mass, y = radius)) +
+  geom_point() +
+  xlab("Mass (Earth Mass)") +
+  ylab("Radius (Earth Radius)") +
+  scale_x_log10() +
+  scale_y_log10() +
+  geom_abline(aes(slope = coef(lm1)[2] , intercept = coef(lm1)[1]), color="blue")
+```
+
+Let's also see what this looks like on the original scale.  
+
+```{r}
+mr %>%
+  mutate(mass_pred = 10^coef(lm1)[1]*mass^coef(lm1)[2]) %>%
+ggplot(aes(x = mass, y = radius)) +
+  geom_point() +
+  geom_line(aes(y = mass_pred), color="red") +
+  xlab("Radius (Earth Radius)") +
+  ylab("Mass (Earth Mass)")
+```
+
+
+Recall that the estimated slope is the power law exponent.  As our estimate is near 0.5, this suggests that the radius may increase with the square root of mass and that a linear model on the original scale is inadequate.  
+
+- How does our power law model compare to a simple linear regression model fit to our data on the original scale?
+
+```{r}
+mr %>%
+  mutate(radius_pred = 10^coef(lm1)[1]*mass^coef(lm1)[2]) %>%
+ggplot(aes(x = mass, y = radius)) +
+  geom_point() +
+  geom_line(aes(y = radius_pred), color="red") +
+  xlab("Mass (Earth Mass)") +
+  ylab("Radius (Earth Radius)") +
+  geom_smooth(method="lm", se=FALSE, color="blue")
+
+summary(lm(radius ~ mass, data=mr))
+#Back to slides
+```
+
+These models are quite different.  We will do some model checking on the appropriateness of our linear model on the log10 scale next.
+
+
+
+
+# Model checking
+
+The linear model we fit uses least squares regression.  
+
+- This means that the parameters were estimated to minimize the total sum of squared errors.  
+-  Let's create a plot that displays these errors.
+
+```{r}
+library(modelr)
+mr = mr %>%
+  add_residuals(lm1) %>%
+  add_predictions(lm1)
+
+ggplot(mr, aes(x = mass, y = radius)) +
+  geom_segment(aes(xend = mass, yend = 10^pred), color="gray") +
+  geom_point() +
+  xlab("Mass (Earth Mass)") +
+  ylab("Radius (Earth Radius)") +
+  scale_x_log10() +
+  scale_y_log10() +
+  geom_abline(aes(slope = coef(lm1)[2] , intercept = coef(lm1)[1]), color="blue") +
+    theme_bw() +
+    theme(text=element_text(size=20))
+```
+
+
+The gray vertical bars are the residuals for the model defined as $r_i = y_i - \hat{y}_i$, where $\hat{y}_i$ is the predicted $\log10$(radius) from our model for exoplanet $i$.  
+ 
+- Our fit linear model is such that the sum of the lengths of these vertical lines is minimized.  
+- That is, if we drew a different line on this plot and found the errors, the sum of those errors squared would be greater than those for our `lm1` fit.
+
+
+### Residual plot
+
+Next we are going to consider a residual plot.  This is where we remove the fit model from the data, and only plot the errors (the residuals) against radius.
+
+```{r}
+ggplot(mr, aes(x = mass, y = resid)) +
+  geom_point() +
+  xlab("Residual (Earth Mass)") +
+  ylab("Radius (log10 Earth Radius)") +
+  scale_x_log10() +
+  geom_hline(aes(yintercept = 0), color = "red",
+             linetype = "dashed") +
+  theme_bw() +
+  theme(text=element_text(size=20)) +
+  geom_smooth(se=FALSE)
+```
+
+
+Patterns in a residual plot can suggest that our linear model model may not be appropriate for the data.  
+
+- In this case, there is very little curvature in the residual plot with only some slight negative skewness when the radius is large.
+- But, overall, the model form seems reasonable.
+
+
+
+
+
+# Introduction to inference on linear models
+
+
+##  Assumptions on the random errors
+
+Let's go back to our linear model, 
+$$
+y_i = \log10(C) + \theta x_i + \varepsilon_i, i = 1, \ldots, n.
+$$
+
+We only mentioned that the $\varepsilon_i$'s are random errors, but we did not discuss other assumptions.
+
+It is common to make the following assumptions (which should also be checked):  
+
+- $E(\varepsilon_i) = 0$.  
+    - This implies $E(y_i) = \log10(C) + \theta x_i$.  
+- Errors have a constant variance:  Var$(\varepsilon_i) = \sigma^2$.  
+    - This implies Var$(y_i) = \sigma^2$.  
+- The errors are uncorrelated.
+
+When desiring to do inference on the estimated parameters, another common assumption to make is that the errors are normally distributed, $\varepsilon_i \sim N(0, \sigma)$.  
+
+  - This implies that $y_i \sim N(\log10(C) + \theta x_i, \sigma)$.
+
+This normality assumption on the errors has implications for the estimates of our parameters.  In particular, it has the consequence that the estimators of our intercept and slope are normally distributed.  
+
+
+## Recall: Z-scores and t-scores
+
+In a previous discussion assignment you were introduced to Z-scores and t-scores.  The t-scores are going to show in our regression inference, so we review that information here.  
+
+> Note that in this review, the estimator is the sample mean.  When we get back to regression the estimators will be for the slope or intercept, which will result in some changes in the t-statistic and the degrees of freedom of the resulting t-distribution.
+
+Assume a model where $X_1,\ldots,X_n$ are drawn at random from a distribution with a mean $\mu$ and a standard deviation $\sigma$.
+
+The sampling distribution of the sample mean,
+$\bar{X} = n^{-1}\sum_{i=1}^n X_i$ has a mean $\mu$ and standard deviation $\sigma/\sqrt{n}$.
+
+A mathematical derivation is required to show this formally, or simulation can be used to check if it the expressions are plausible.
+
+#### Z-Score
+
+We have seen in many settings that the z-statistic (substract the mean, divide by the standard deviation) often has an approximate standard normal distribution.
+$$
+Z = \frac{\bar{X} - \mu}{\sigma/\sqrt{n}}
+$$
+If the distribution of each $X_i$ is normal, then $Z$ will be normal as well.
+
+Even if $X_i$ does not have a normal distribution, the distribution of $\bar{X}$ will be approximately normal if $n$ is large enough to overcome the non-normality, a result known as the central limit theorem.
+
+#### t distribution
+
+However, $\sigma$ is typically unknown and things are a bit different when the sample standard deviation $s$ is substituted for $\sigma$.
+$$
+T = \frac{\bar{X} - \mu}{S/\sqrt{n}}
+$$
+where
+$$
+S = \sqrt{ \frac{\sum_{i=1}^n (X_i - \bar{X})^2}{n-1} }
+$$
+
+The added random variability in the denominator means that even when the distribution of a single random variable is exactly normal, the distribution of $T$ is not.
+
+Instead, it has a $t$ distribution with $n-1$ degrees of freedom, which is a bell-shaped density centered at zero, but more spread out than a standard normal density.
+
+When the degrees of freedom becomes large, the $t$ distribution is quite close to standard normal.
+
+It is identical to standard normal when the degrees of freedom is infinite.
+
+#### R functions
+
+These R functions are similar to their normal counterparts.
+
+- `rt()`: generate random variables from a t distribution
+- `pt()`: find an area under a t density
+- `qt()`: find a quantile from a t density
+- `dt()`: return the height of the t density
+
+In addition, the following functions are available in the script ggprob.R to add t densities to plots.
+
+- `geom_t_density()`: add a t density to a plot
+- `geom_t_fill()`: add a filled t density
+- `gt():` graph a t density
+
+The following graph shows a standard normal distribution in black and t distributions with degrees of freedom equal to 1, 2, 4, 8, \ldots, 1028 ranging from yellow to violet.
+
+```{r show-t, echo=FALSE, fig.height=4}
+col = viridis(10,begin=1,end=0)
+g = ggplot()
+  
+for ( i in 1:10 )
+  g = g + geom_t_density(2^(i-1),color=col[i],a=-5,b=5)
+
+g = g +
+  geom_norm_density(color="black") +
+  geom_hline(yintercept=0) +
+  theme_bw()
+
+plot(g)
+```
+
+#### Confidence Intervals
+
+A confidence interval for $\mu$ has the form
+$$
+\bar{x} \pm t^* \frac{s}{\sqrt{n}}
+$$
+where $t^*$ is selected so that the area between
+$-t^*$ and $t^*$ under a t density with $n-1$ degrees of freedom is the desired confidence level.
+
+A confidence interval for a difference between means,
+$\mu_1 - \mu_2$,
+has the form
+$$
+\bar{x}_1 - \bar{x}_2 \pm t^* 
+  \sqrt{ \frac{s_1^2}{n_1} + \frac{s_2^2}{n_2} }
+$$
+where $t^*$ is from a $t$ distribution
+where the degrees of freedom is estimated as a function of the sample sizes and standard deviations.
+Use the function `t.test()`.
+This approach assumes that the standard deviations of the two populations need not be the same.
+
+#### Hypothesis Tests
+
+When using t distribution methods,
+p-values are found by calculating the t statistic and finding areas under t distributions.
+
+
+## Back to regression
+
+These concepts will be used to carry out inference on the estimated parameters of our simple linear model, which we will do next.
+
+
+
+
+# Inference for linear models
+
+If we make the assumption that the errors on linear model are normally distributed, we can carryout hypothesis test on our estimated parameters.
+
+We will focus on inference for the slope parameter since that tends to be the more scientifically interesting parameter.  
+
+The hypothesis test we will carry out is
+$$
+H_0:  \theta = 1 \\
+H_a:  \theta \neq 1
+$$
+
+We test the null that our slope parameter $\theta$ (which is the power law exponent) is 1, suggesting a linear relationship between $\log10$(radius) and $\log10$(mass), against the alternative that there is a power law relationship.
+
+This leads to the test statistic
+$$
+T = \frac{\hat{\theta} - 1}{\SE(\hat{\theta})}
+$$
+where $s_{\hat{\theta}}$ is the standard error of $\hat{\theta}$.  Note that the 1 is from the null hypothesis assumption that $\theta = 1$.
+
+- In case you were curious, the formula for this standard error is
+$$
+\SE(\hat{\theta}) =  \sqrt{\frac{\sum_{i = 1}^n (y_i - \hat{y}_i)^2/(n-2)}{\sum_{i = 1}^n (x_i - \bar{x})^2}}
+$$
+where $\bar{x}$ is the sample mean of the $x_i$, and $\hat{y}_i$ is the predicted $\log10$(radius) values for observation $i$.
+
+- Note that a common estimate of the parameter $\sigma$, call it $s_e$ for the standard deviation of the error term estimated from sample data, has the formula
+$$
+s_e = \sqrt{ \frac{\sum_{i = 1}^n (y_i - \hat{y}_i)^2}{(n-2)} }
+$$
+- which is the square root of the residual sum of squares divided by the degrees of freedom.
+- Also, the population standard deviation (use $n$ and not $n-1$ in the denominator) of the x values has the formula
+$$
+\sigma_x = \sqrt{ \frac{\sum_{i = 1}^n (x_i - \bar{x})^2}{n} }
+$$
+
+- It follows that
+$$
+\SE(\hat{\theta}) = \frac{s_e / \sigma_x}{\sqrt{n}}
+$$
+
+
+- We can calculate this as follows:
+```{r}
+n = nrow(mr)
+syy = sum(mr$resid^2)
+sxx = sum((log10(mr$mass) - mean(log10(mr$mass)))^2)
+sqrt(syy/(n-2)/sxx)  ## standard error using the formula above
+coef(summary(lm1))[2, "Std. Error"] ## standard error from our lm1 model
+```
+This is also the standard error that would be used in a confidence interval for $\theta$:  $\hat{\theta} \pm t_{n-2} \SE(\hat{\theta})$, where $t_{n-2}$ is selected based on the desired confidence level.  
+
+- You may be wondering why we have a $t$ distribution with $n-2$ degrees of freedom here.  This is because our model has two parameters (the slope and intercept) so we "use up" two degrees of freedom when estimating them. 
+
+
+The output of our estimated model gives us the result of (a different) hypothesis test:
+$$
+H_0:  \theta = 0 \\
+H_a:  \theta \neq 0
+$$
+
+```{r}
+summary(lm1)
+```
+
+```{r, include = FALSE}
+foo = coef(summary(lm1))
+theta = round(coef(lm1)[2],4)
+se_theta = round(foo[2,2],4)
+t_theta = round(foo[2,3], 3)
+n = nrow(mr)
+```
+
+The estimated slope is $\hat{\theta} = `r theta`$
+with an estimated standard error of $SE(\hat{\theta}) = `r se_theta`$.
+
+This leads to a t-statistic of
+$$
+T = \frac{`r theta`  - 0}{`r se_theta`} = `r t_theta`
+$$
+
+We see that there are `r n` observations in our data set.  Since there are two estimated parameters in our linear model (slope and intercept), we use $`r n` - 2 = `r n - 2`$ degrees of freedom for the t-distribution for our slope.
+```{r}
+## Number of observations
+n = mr %>%
+  nrow()
+
+n
+
+## t statistic
+t_stat = coef(summary(lm1))[2,3]
+t_stat
+
+## Compute our p-value
+2 * pt(-t_stat, n-2)
+```
+
+Notice that this p-value is very small leading us to conclude that we have overwhelming evidence that the true value of $\theta$ is greater than zero.
+
+
+#### Test $\theta = 1$
+
+```{r, include = FALSE}
+t_theta_1 = (theta - 1) / se_theta
+```
+
+To carry out our hypothesis test with
+$$
+H_0:  \theta = 1 \\
+H_a:  \theta \neq 1
+$$
+we use the following t-statistic:
+$$
+T = \frac{`r theta`  - 1}{`r se_theta`} = `r round(t_theta_1, 3)`
+$$
+
+
+```{r}
+## t-statistic
+t_stat_1 = (coef(summary(lm1))[2]-1)/coef(summary(lm1))[2,2]
+t_stat_1
+
+## Compute our p-value
+2*pt(t_stat_1, df = n-2)
+```
+
+As this p-value is also tiny, there is overwhelming evidence against the null hypothesis.  In other words, the results suggest that a linear model is not appropriate, in favor of a power law exponent greater less than 1 ($p < 10^{-83}$, two-sided t-test).
+
+
+We can create a plot to visualize the p-value:
+
+```{r}
+gt(nrow(mr)-2) +
+  geom_vline(aes(xintercept = c(-abs(t_stat_1), t_stat_1)), color="red", linetype="dashed") +
+  geom_t_fill(nrow(mr)-2, a = abs(t_stat_1), b=6) +
+  geom_t_fill(nrow(mr)-2, a=-6, b = -abs(t_stat_1))
+
+```
+
+##  Confidence interval for $\theta$
+
+To construct a 95% confidence interval for $\theta$, use the form
+$$
+\hat{\theta} \pm t^* \SE(\hat{\theta})
+$$
+where $t^*$ is the 0.975 quantile from a t distribution with $n-2$ degrees of freedom.
+
+Plugging in the numbers, we get the following.
+
+```{r}
+coef(summary(lm1))
+
+theta = coef(lm1)[2]
+theta
+
+se_theta = coef(summary(lm1))[2,2]
+se_theta
+
+n = nrow(mr)
+n
+
+tmult = qt(0.975, n-2)
+tmult
+
+ci = theta + c(-1,1) * tmult * se_theta
+round(ci,3)
+```
+
+> We are 95% confident that the true value of $\theta$ in the power law for the radius of exoplanets versus mass when mass is between 2 and 127 earth masses is between 0.450 and 0.533.
+
+- Note that 0.5 is in this interval, so a square root law is one of several plausible power laws which could be true.
+- But 1 is far from this interval meaning there is strong evidence against a linear relationship being true.
+
+
+# Inference for linear models via simulation
+
+Instead of relying on the theoretical values for the standard deviation of the parameters, we could instead run a simulation.
+
+We can use the parametric bootstrap, which involves generating many realizations of the data using the initial estimate for $\theta$ and then fitting the regression model on the simulated data set to obtain many estimates of $\theta$.  The mean and standard deviation of these values can be used for inference.
+
+Here are the steps for the parametric bootstrap:
+
+1. Estimate the parameters of the statistical model.
+2. Use the estimated model and simulate a new data set of the same size.
+    - In a regression framework, this would involve adding to each predicted value $\hat{y}$ a new simulated normally distributed random error from a distribution with mean zero and the estimated standard deviation.
+3. Fit a linear model to the simulated data set and estimate the coefficients.
+4. Repeat steps 2 and 3 many times.
+5. Calculate the standard deviations of the coefficients from the simulated data sets as estimates of the standard errors.
+
+```{r simulation-parametric-bootstrap}
+n = mr %>%
+  select(mass, radius) %>%
+  drop_na() %>%
+  nrow()
+sigma_hat = sigma(lm1)
+sigma_hat
+
+N = 10000 # 10000
+b_0 = numeric(N)
+b_1 = numeric(N)
+
+for ( i in 1:N )
+{
+  mr_new = mr %>%
+    drop_na() %>%
+    mutate(radius = 10^(pred + rnorm(n,0,sigma_hat))) # these are the "new" y's
+  lm2 = lm(log10(radius) ~ log10(mass), data=mr_new)
+  b_0[i] = coef(lm2)[1]
+  b_1[i] = coef(lm2)[2]
+}
+
+df_coef = tibble(b_0,b_1)
+```
+
+
+
+Let's look at the slope parameter.  We can estimate the mean and standard deviation from the parametric bootstrap simulation, and then compare it to a normal distribution with the same mean and standard deviation.
+
+```{r}
+mean_slope = mean(df_coef$b_1)
+mean_slope
+sd_slope = sd(df_coef$b_1)
+sd_slope
+
+
+ggplot(df_coef, aes(x=b_1)) +
+  geom_density() +
+  geom_hline(yintercept = 0) +
+  xlab("theta") +
+  ylab("Density") +
+  geom_norm_density(mu = mean_slope, sigma = sd_slope, color="blue") +
+  ggtitle("Exoplanet Mass-Radius Relationship",
+          subtitle = "Parametric bootstrap distribution of the slope (black), and a normal density (blue)")
+```
+
+The simulated distribution (black curve) follows the normal distribution (blue curve) quite well.
+
+So how do these values compare to what we calculated with the theoretical equations?
+
+```{r}
+paste("Bootstrap: ", round(mean_slope,3), round(sd_slope,3))
+paste("Theoretical: ", round(coef(lm1)[2],3), round(coef(summary(lm1))[2, "Std. Error"],3))
+```
+
+Very close as well!
+
+
+
+
+# Prediction
+
+### Recall:  Mass-Radius Relationship
+
+The *mass-radius relationship* of exoplanets is the relationship between exoplanets’ radius, R, their mass, M.
+
+Modeling the relationship between mass and radius is important for the following reasons:
+
+- Prediction  
+    - The model can be used to predict a planet’s radius given its mass measurement
+    
+ 
+#### Prediction
+
+Let's take a look at our estimated model on a plot again:
+
+```{r}
+ggplot(mr, aes(x = mass, y = radius)) +
+  geom_point() +
+  xlab("Mass (Earth Mass)") +
+  ylab("Radius (Earth Radius)") +
+  scale_x_log10() +
+  scale_y_log10() +
+  geom_abline(aes(slope = coef(lm1)[2] , intercept = coef(lm1)[1]), color="blue") +
+  theme(text = element_text(size=20))
+```
+
+The estimated regression model is 
+$$
+\hat{y}_i = `r round(coef(lm1)[1],3)` + `r round(coef(lm1)[2],3)` x_i.
+$$
+
+
+We can use the estimated linear model to predict a radius for a given mass.  
+
+Note that the function below assumes the input `x` is mass on the original scale and returns an estimated radius on the original scale.
+```{r}
+predict_y = function(x){
+    ## x = mass (on original scale)
+    slope = coef(lm1)[2]
+    intercept = coef(lm1)[1]
+    logy = intercept + slope*log10(x)
+    y = 10^logy
+    names(y) = "predicted radius"
+    return(y)
+}
+
+mass_input = 10
+radius_predicted = predict_y(10)
+radius_predicted
+```
+
+We can plot this point as well:
+
+```{r}
+ggplot(mr, aes(x = mass, y = radius)) +
+  geom_point() +
+  xlab("Mass (Earth Mass)") +
+  ylab("Radius (Earth Radius)") +
+  scale_x_log10() +
+  scale_y_log10() +
+  geom_abline(aes(slope = coef(lm1)[2] , intercept = coef(lm1)[1]), color="blue") +
+  geom_point(aes(x = mass_input, y=radius_predicted), color = "red", size = 2) +
+  theme(text = element_text(size=20))
+```
+
+An interesting and useful feature of the least squares regression line is that it goes through the point $(\bar{x}, \bar{y})$.  We can check this with our function as well.  
+
+- This property holds on the scale of the linear model.  
+- Since our $x$ and $y$ variables were transformed, we have to make some adjustments to the scale.
+
+```{r}
+mass = 10^mean(log10(mr$mass)) ## mean of log10(mass), transformed back to original scale for function
+mass
+log10(predict_y(mass)) ## predicted value at xbar
+
+print(paste0("(xbar,ybar) = (",round(mean(log10(mr$mass)),3), ", ", round(mean(log10(mr$radius)),3),")"))
+```
+
+
+We can get our predicted values of radius, but there is uncertainty in this estimate, and it can be desirable to define an interval around the estimate to capture this uncertainty.  
+
+There are two common ways to look at this problem of predicting $\hat{y}$:
+
+- Confidence interval  
+    - The goal is an uncertainty interval around the parameter $E(y \mid x^*)$, the expected value of the response given the explanatory variable $x^*$.
+
+- Prediction interval  
+    - The goal is an uncertainty interval around some future $y^*$ for some given $x^*$.  
+    - The prediction interval is trying to capture a *random* outcome $y^*$ rather than a fixed parameter like the $E(y \mid x^*)$.  
+    
+We will focus on the confidence interval version next.
+
+
+
+
+# Confidence intervals for $E(y \mid x^*)$
+
+The goal is an uncertainty interval around the parameter $E(y \mid x^*)$, the expected value of the response given the explanatory variable $x^*$.
+
+The uncertainty in the estimated $\hat{y}$ needs to account for the uncertainty in the estimated intercept and estimated slope.  The formula for this uncertainty is
+$$
+s_{\hat{y}} = \sqrt{\left((n-2)^{-1} \sum_{i=1}^n(y_i - \hat{y}_i)^2\right)\left(n^{-1} + \frac{(x^* - \bar{x})^2}{\sum_{i = 1}^n (x_i - \bar{x})^2} \right)}
+$$
+
+where $x^*$ is the mass (on the original scale) for which the confidence interval of $E(y \mid x^*)$ is desired.
+
+- Note, this formula may be rewritten as
+$$
+s_{\hat{y}} = \frac{s_e}{\sqrt{n}} \sqrt{ 1 + \frac{(x^*-\bar{x})^2}{\sigma_x^2} }
+$$
+- If we are making a prediction at $x^* = \bar{x}$, then the standard error of $\hat{y}$ mimics the single population standard error of $s / \sqrt{n}$.
+- The value under the square root sign equals 1 at $x^* = \bar{x}$ and increases with greater distance between $x^*$ and $\bar{x}$.
+- This overall estimate gets smaller as $n$ increases at the rate $1 / \sqrt{n}$.
+
+We can write a function to compute $s_{\hat{y}}$:
+```{r}
+s_yhat = function(x){
+  ## x = radius on original scale
+  n = nrow(mr)
+  syy = sum(mr$resid^2)/(n-2)
+  mean_logx <-mean(log10(mr$radius))
+  sxx = sum((log10(mr$radius) - mean_logx)^2)
+  out = sqrt(syy*(1/n + (log10(x)-mean_logx)^2/sxx))
+  return(out)
+}
+
+s_yhat(10)
+
+```
+
+
+Next we add the lower and upper bounds for 95% confidence interval to `mr`, then add them to our plot.
+
+```{r}
+n = nrow(mr)
+mr = mr %>%
+  mutate(y_plus_se = pred + qt(.975, n-2)*s_yhat(radius),
+         y_minus_se = pred - qt(.975, n-2)*s_yhat(radius))
+
+ggplot(mr, aes(x = mass, y = radius)) +
+  geom_point() +
+  xlab("Mass (Earth Mass)") +
+  ylab("Radius (Earth Radius)") +
+  scale_x_log10() +
+  scale_y_log10() +
+  geom_smooth(method="lm", se=TRUE, color="red")+
+  geom_abline(aes(slope = coef(lm1)[2] , intercept = coef(lm1)[1]), color="blue") +
+  geom_line(aes(x = mass, y= 10^y_plus_se), color = "red", linetype="dashed") +
+  geom_line(aes(x = mass, y= 10^y_minus_se), color = "red", linetype="dashed") +
+  geom_vline(aes(xintercept =
+                   10^(mean(log10(mass)))),
+             color="blue", linetype="dotted") +
+  theme(text = element_text(size=20)) 
+```
+
+Notice that our 95% confidence interval outlines the shaded region when we use `geom_smooth(method="lm", se=TRUE)`!
+
+It is subtle in the plot, but confidence interval narrows as $x^*$ gets closer to the mean of the $\log10$(radius).  
+
+- See the vertical dotted blue line above for the location of this mean.  
+- The formula for $s_{\hat{y}}$ reveals why this happens.
+
+
+
+
+# Prediction Intervals for random $y^*$
+
+- The goal is an uncertainty interval around some future $y^*$ for some given $x^*$.  
+- The prediction interval is trying to capture a *random* outcome $y^*$ rather than a fixed parameter like the $E(y \mid x^*)$.  
+
+The uncertainty in some *random* outcome $y^*$ needs to account for the uncertainty in the estimated intercept and estimated slope, but also the uncertainty related to the randomness of the outcome (from the $\varepsilon^*$ associated with $y^*$).
+
+The formula for this uncertainty is
+$$
+s_{\hat{y}^*} = \sqrt{\left((n-2)^{-1} \sum_{i=1}^n(y_i - \hat{y}_i)^2\right)\left(1 + n^{-1} + \frac{(x^* - \bar{x})^2}{\sum_{i = 1}^n (x_i - \bar{x})^2} \right)}
+$$
+
+where $x^*$ is the radius (on the original scale) that is associated with $\hat{y}^*$.
+
+
+- Note, this formula may be rewritten as
+$$
+s_{\hat{y}^*} = s_e\sqrt{ 1 + \frac{(x^* - \bar{x})^2}{n \sigma_x^2} } 
+$$
+- Here, as $n$ gets large, the value converges to $s_e$ which converges to $\sigma$.
+    - The the standard error portion of the width of a prediction interval never gets smaller than $\sigma$.
+- This error is also larger for $x^*$ further from the mean $\bar{x}$.    
+
+
+We can write a function to compute $s_{\hat{y}}$:
+```{r}
+s_yhatstar = function(x){
+  ## x = radius on original scale
+  n = nrow(mr)
+  syy = sum(mr$resid^2)/(n-2)
+  mean_logx <-mean(log10(mr$mass))
+  sxx = sum((log10(mr$mass) - mean_logx)^2)
+  out = sqrt(syy*(1 + 1/n + (log10(x)-mean_logx)^2/sxx))
+  return(out)
+}
+
+s_yhatstar(10)
+
+```
+
+
+Next we add the lower and upper bounds for 95% prediction interval to `mr`, then add them to our plot
+
+```{r}
+n = nrow(mr)
+mr = mr %>%
+  mutate(ystar_plus_se = pred + qt(.975, n-2)*s_yhatstar(radius),
+         ystar_minus_se = pred - qt(.975, n-2)*s_yhatstar(radius))
+
+ggplot(mr, aes(x = mass, y = radius)) +
+  geom_point() +
+  xlab("Mass (Earth Mass)") +
+  ylab("Radius (Earth Radius)") +
+  scale_x_log10() +
+  scale_y_log10() +
+  geom_line(aes(x = mass, y= 10^ystar_plus_se), color = "green", linetype="dashed", size= 1.5) +
+  geom_line(aes(x = mass, y= 10^ystar_minus_se), color = "green", linetype="dashed", size= 1.5) +
+  geom_smooth(method="lm", se=TRUE, color="red")+
+  geom_abline(aes(slope = coef(lm1)[2] , intercept = coef(lm1)[1]), color="blue") +
+  geom_line(aes(x = mass, y= 10^y_plus_se), color = "red", linetype="dashed") +
+  geom_line(aes(x = mass, y= 10^y_minus_se), color = "red", linetype="dashed") +
+  geom_vline(aes(xintercept = 10^(mean(log10(mass)))), color="blue", linetype="dotted") +
+  theme(text = element_text(size=20))
+```
+
+Notice the 95% prediction interval (green dashed lines) is wider than the 95% confidence interval.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,203 @@
+---
+author: "vardaan kapoor"
+output: html_document
+---
+
+STRING_R TUTORIAL
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      error = TRUE)
+                    
+library(tidyverse)
+library(lubridate)
+library(kableExtra)
+library(readxl)
+
+```
+
+This tutorial is built to teach the students how to use the stringr package provided by the tidyverse.
+
+Contents-
+
+Introduction
+
+Simple functions
+
+Regex Expressions
+
+Downloading stringr
+```{r}
+library(tidyverse)
+```
+stringr doesn't assume any difference between single quoted stings and double quoted strings
+
+Declaring a string
+```{r}
+sring1<-"hello welcome to the tutorial"
+string1
+```
+
+writelines() method is used to get the raw contents of a string-the literal meaning and not how the string is actually defined when it was written
+
+Some Important methods to keep in your repotoire-
+
+1 length
+```{r}
+print(str_length("welcome and lets get started"))
+```
+
+2 combining strings and choosing delimiters
+```{R}
+string3<-str_c("hello","world",sep=":")
+string3
+```
+
+3 getting a subset of strings-both endpoints are inclusive
+```{r}
+string4<-str_sub(string3,2,7)
+string4
+```
+
+note:str_sub is able to give the full string if the offsets extend the length of the string-so no "bounds exception" is thrown
+
+4 viewing matching parts of a string according to the characters given
+```{R}
+str_view(string3,".:.")
+```
+additional note:
+
+"." is used to denote the existence of some character
+
+scenario:searching for a special character in the string
+```{r}
+string1="hello..world"
+string1
+str_view(string1,"\\.")
+```
+
+Expression matching-
+
+^ denotes the start of an expression
+
+$ denotes the end of an expression
+
+[] anything inside the square brackets can be matched for the expression
+
+[^] if anything is after ^ inside the square brackets, then all of the characters won't be matched
+
+choosing some amount of characters-
+
+{a} means exactly a number of times
+{a,b} means at least a and at max b number of times
+
+concept of grouping different parts of strings-
+```{r}
+string1="papaya and banana"
+str_view(string1,"(..)\\1")
+```
+concept of character classes-these classes encode some characters which can be used as a group which is equivalent to writng them manually inside a pair of square brackets
+
+some of the examples include- 
+
+\d for digits(0 to 9)
+
+\s for any whitespace
+
+example: find all the words containing some digit in this string collection
+```{r}
+x1=c("word1","word2","words and words","any more words","finally 5 words")
+words_digits=x1[str_detect(x1,"\\d")]
+words_digits
+```
+
+Detecting patterns in strings
+
+str_detect() method is used to detect expressions in strings
+
+return type is Boolean values-account to numerical values 1 and 0, so arithmetic operations can happen like sum
+
+```{r}
+sum1=sum(str_detect(words,"t"))-sum(str_detect(words,"ze"))
+sum1
+```
+
+Examples of complex logial operations for detecting expressions in strings
+
+example: find all the words which start  with a vowel and end with a consonant
+```{r}
+words[str_detect(words, "^[aeiou].*[^aeiou]$")]
+
+```
+
+counting the number of instances found of a character or an expression inside a string
+
+example: find the number of instances of words where the 3rd character is a vowel and the fifth is anything except "b"
+```{r}
+x<-c("hello","hi","i","am","a","student","i","am","learning","something","today","")
+str_count(x,"^..[aeiou].[^b]")
+```
+
+str_extract and str_match
+
+str_extract gives the full extract expression while str_match gives individual matches
+```{r}
+str_extract(words,"^[a|d]..[^aeiou]$") %>% head(300)
+```
+
+matching consecutive occurrences of a character or a group of characters
+we can use ? of *
+?- match 0 or 1 matching occurrences
+*-match at least 1 occurrences
+
+
+replacing characters in strings
+we can use str_replace() method
+```{r}
+str_replace(x,"a","rep")
+```
+
+example-
+
+replace_na is used to print even NA as "NA" string in the output
+```{r}
+string_r<-c("char1","char2",NA,"char3",NA)
+str_replace_na(string_r)
+```
+
+using conditional statements in str_c to combine strings
+```{r}
+s11=FALSE
+s22=0
+s33=TRUE
+cond_s<-c(if(s11) "possible",if(s33) "possible2",if(!s22) "not possible")
+cond_s
+```
+
+NOTE: ignore_case=TRUE will match every instance of the expression without caring for the case 
+splitting a string
+```{r}
+string1="here we have come to the end of the tutorial. Hope you learnt some important commads to get you started with the stringr package."
+str_split(string1," ")
+```
+
+FEW EXCITING REGEX EXERCISES-
+
+example 1: find all the words matching ^$^.
+
+example 2: find all the words starting with a digit with 2nd character as ^ and  fourth character as a consonant 
+
+solutions-
+
+```{r}
+case1<-c("^gh^$^.fihg","heufh^$.","ufhef^$$^.","efhefh$^.","^$^.vfgfg^$^.jgng")
+case1[str_detect(case1,"\\^\\$\\^\\.")]
+case2<-c("@32232yih","@32ff","1^.g","4^.e","rhuf^.","6^gg","5$kh")
+case2[str_detect(case2,"^[0123456789]\\^.[^aeiou]")]
+```
+
+
+REFERENCES FOR HUNGRY MINDS-
+
+the go to:https://r4ds.had.co.nz/strings.html#introduction-8
+
+the next level:https://www.rdocumentation.org/packages/stringr/versions/1.1.0

@@ -1,0 +1,23 @@
+things to know
+outcome space
+probability
+law of large numbers
+meaning of high probability and close
+events and defined in all three scenarios
+disjoint events
+prob axioms
+random variable+indicator variable of randomness
+addition rule and general addition-interection alternativeness rule
+probability distribution of discrete and continuous 
+complement rule
+independence of random variables
+multiplication rule
+conditional prob and how to link to independence
+law of total probability
+weighted means and redefinition of  law of total prob
+expectation
+expectation of continuous random variables
+variance
+sum of random variables
+covariance
+linear combinations

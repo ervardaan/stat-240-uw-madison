@@ -1,0 +1,1213 @@
+---
+title: "Madison Weather"
+output: html_document
+---
+
+This R Markdown document includes contributions from Professor Jessi Kehe.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE,  message=FALSE, warning=FALSE,
+                      error = TRUE,
+                      fig.height = 4)
+library(tidyverse)
+library(lubridate)
+library(viridisLite)
+```
+
+## Overview of dplyr
+
+- The dplyr package has functions and verbs for making changes to data sets using a grammar of data manipulation.
+
+- From the [dplyr website](https://dplyr.tidyverse.org/), some of the most common verbs needed to accomplish this are listed below.
+
+    - `mutate()` *adds new variables that are functions of existing variables*  
+    - `select()` *picks variables based on their names*  
+    - `filter()` *picks cases based on their values*  
+    - `summarize()` *reduces multiple values down to a single summary*  
+    - `arrange()` *changes the ordering of the rows*  
+
+
+## dplyr cheatsheet
+
+- There are many cool things you can do using the dplyr package and we won't be able to go through everything this semester.
+- The [dplyr cheatsheet](https://raw.githubusercontent.com/rstudio/cheatsheets/master/data-transformation.pdf) is a useful summary of the package to keep handy.
+
+## Examples
+
+- We begin learning **dplyr** with two very small data sets.
+- The function `read_csv()`, which is part of the **readr** package in **tidyverse**, is used to read in *comma-separated-variable* data sets.
+
+```{r}
+## Read in two small example data sets
+grocery_prices = read_csv("../../data/grocery-prices.csv")
+grocery_list = read_csv("../../data/grocery-list.csv")
+
+grocery_prices
+grocery_list
+```
+
+### Merging data sets
+
+- **dplyr** contains several commands to merge together different data sets.
+- Here we use `left_join()`.
+  - This command keeps all rows of the first data set and adds new columns from the second data set.
+  - Missing values, if any, are represented with the value `NA`.
+  - Each `*_join()` function should specify one or more columns with the argument `by` which are common in the two data sets and are the basis for how the data sets are joined together.
+- In this example:
+    - the data set `grocery_list` has 10 rows with the columns `item` and `quantity`
+    - the data set `grocery_prices` has 20 rows with the columns `item`, `price`, and `type`.
+    - `left_join()` by `item` adds the columns `price` and `type` only for the rows where an `item` in `grocery_prices` matches an item in `grocery_list`.
+    
+```{r}
+## Merge for a single grocery list
+produce = left_join(grocery_list, grocery_prices, by = "item") 
+
+produce %>% 
+  print(n = Inf)
+```
+
+### Adding a new column
+
+- `mutate()` adds a new column or changes an existing one
+    - When adding a new row, the argument is `new_name = how-to-calculate-it`
+
+```{r}
+## mutate()
+## to add a column and save
+produce = produce %>% 
+    mutate(cost = price * quantity)
+produce
+```
+
+### Selecting columns
+
+- Use `select()` to eliminate columns
+    - Use `-` to remove columns
+    - Or name the ones to keep
+    
+```{r}
+## select()
+produce %>% 
+    select(-item)
+
+produce %>% 
+    select(item, type)
+```
+
+### Filter rows
+
+- Use `filter()` to decide which rows to keep and which to filter out
+    - The argument inside of `filter()` evaluates as `TRUE` or `FALSE` for each row.
+    
+```{r}
+## filter()
+produce %>% 
+    filter(quantity > 1)
+```
+
+### Create a summary table
+
+- Use `summarize()` to create a single row with one or more summary values, each in its own column
+- If you preceded `summarize()` with a `group_by()` command of one or more variables, then there are separate summaries for each distinct set of values for those grouping variables
+
+```{r}
+## summarize()
+produce %>% 
+    summarize(total = sum(cost))
+
+produce %>% 
+    group_by(type) %>% 
+    summarize(n = n(),
+              total = sum(cost))
+```
+
+### Arrange rows
+
+- Sort the rows by one or more criteria
+    - Use `desc()` for descending order
+
+```{r}
+## arrange()
+produce %>% 
+    arrange(price)
+
+produce %>% 
+    arrange(desc(quantity), price)
+```
+
+### Arrange columns
+
+- Use `relocate()` to change the order of columns
+    - Like `select()`, but does not eliminate the unnamed variables.
+
+```{r}
+produce %>% 
+  relocate(type)
+```
+    
+### Combining multiple steps
+
+- We often use the pipe operator, `%>%`, to combine multiple steps
+    - Here, we create a new variable `cost`, move `type` to be the second column, and arrange the rows from most to least expensive.
+    
+```{r}
+## A combination of steps
+produce %>% 
+    mutate(cost = price * quantity) %>% 
+    relocate(item, type) %>% 
+    arrange(desc(cost))
+```
+
+## Pipe
+
+- So what is the `%>%` doing?
+
+- Similar to how ggplot2 commands use a + to add layers to a plot, in dplyr, we use the *pipe* command %>% to take the output from one command to “pipe it into” the first argument of the next command.
+
+- Here is the previous command written without the pipe.
+- Notice how hard it is to read and write
+    - The first actions happen in the middle of the statement
+    - The arguments to a command are separated from the commands
+    - It is hard to identify the matching parentheses
+
+```{r}
+arrange( relocate( mutate(produce, cost = price * quantity), item, type), desc(cost) )
+```
+
+- An alternative would be to do things step by step with temporary data frames
+
+```{r}
+temp = mutate(produce, cost = price * quantity)
+temp = relocate(temp, item, type)
+temp = arrange(temp, desc(cost))
+temp
+```
+
+- All dplyr (and tidyverse) commands take a data frame (or tibble) as the first argument; most also return a data frame which can then be used as the input to an additional command.
+
+## Common dplyr commands
+
+- Here is a summary of common **dplyr** commands
+
+### Manipulating Cases
+
+- `filter()` — select rows by a condition  
+- `slice()` — select rows by row number  
+- `arrange()` — order rows    
+- `desc()` — used inside of `arrange()` to specify the order in descending order of a variable
+
+### Manipulate Variables
+
+- `select()` — select variables  
+    - positive to include; negative to exclude  
+    - helper functions: `starts_with()`, `ends_with()`, `contains()`, `everything()`    
+- `mutate()` — add or change one or more variables  
+- `transmute()` — add or change one or more variable, remove the `rest()`
+- `rename()` — change the name of a variable
+- `relocate()` - change the order of the variables
+
+### Grouping and Summarizing 
+
+- `summarize()` — compute a table of summaries  
+    - See the second page of the Cheatsheet for a large vocabulary of summarizing functions  
+- `group_by()`
+    - create groups; often used prior to `summarize()` or `mutate()` with the effect that summaries are calculated by `group()`
+
+### Combining Data Sets
+
+- `bind_cols()`
+    - combine two data frames that have the same cases by binding together columns  
+- `bind_rows()`
+    — combine two data frame that have the same variables by binding together rows  
+- `left_join()`, `right_join()`, `inner_join()`, `full_join()`
+    — functions that mutate one or both data frames to join them together
+
+## Illustrations
+
+- We are not going to cover in detail all the options presented above, but you will learn more during the Madison Weather lectures and from working with **dplyr** on your own.
+- We will illustrate many of the **dplyr** functions showing how to transform and wrangle the raw Lake Mendota data sets.
+- Once you get the general idea, the world of R data frames will be your playground.
+
+### Lake Mendota
+
+- Begin by reading in the raw Lake Mendota data.
+- Note: this is a different file than what we read in last week
+  - There is one row for each interval that Lake Mendota is closed, not each winter
+  - There are fewer variables
+  - In particular, the dates are not fully specified
+
+```{r read-data}
+mendota_raw = read_csv("../../data/lake-mendota-raw-2022.csv")
+head(mendota_raw)
+
+## dimensions
+dim(mendota_raw)
+```
+
+### Aims
+
+- Our aim is to create two new data sets from this raw data set
+    - The first keeps one row per interval, but stores the information in more convenient variables
+    - The second summarizes the first and retains one summary row per winter
+
+#### Checking intervals
+
+- From the background reading, we are told that there are multiple rows per year in some years as each freeze interval has its own row and some years have multiple freeze intervals.
+    - We can check this counting the number of rows in each winter using `count()` and then finding the minimum and maximum of these values.
+    - The function `count()` returns a data frame with a variable named `n` that records the number of rows.
+    - If called with one or more arguments, it groups by those and before counting.
+    - `count()` is a short cut for using `group_by()` with one or more variables and then `summarize(n = n())`
+
+```{r}
+### Check number of intervals per winter
+### Show how count() works
+mendota_raw %>% 
+    count(winter)
+```
+
+- Here is the more verbose equivalent
+
+```{r}
+mendota_raw %>% 
+  group_by(winter) %>% 
+  summarize(n = n())
+```
+
+### Now, pipe directly into the summary
+
+```{r}
+### Calculate the smallest and largest number of intervals
+mendota_raw %>% 
+    count(winter) %>% 
+    summarize(min = min(n), max = max(n))
+```
+
+- Some winters have two intervals. Let's see which ones do.
+    - Use `filter()` to find out
+
+```{r}
+## Note the use of == to test for equality
+mendota_raw %>% 
+    count(winter) %>% 
+    filter(n == 2)
+```
+
+- There are seven winters with two freeze intervals.
+- Next, create a data frame named `mendota_interval` with one row per interval
+    - Recalculate the `duration` variable
+    - Create `year1` AND `year2` variables
+    - Change `closed` and `open` into proper dates
+- Note the use of `separate()` which separates `winter` into `year1` and `year2`.
+    - The argument `remove = FALSE` retains winter as a variable
+
+```{r}
+mendota_interval = mendota_raw %>%
+## drop the days column and rows with missing data
+## the days variable had missing data in the first year
+##   of winters with multiple freeze intervals,
+##   so we needed to remove the column before calling drop_na()    
+  select(-days) %>% 
+  drop_na() %>% 
+## get the year1 and year2 numeric variables
+  separate(winter,into = c("year1","year2"), remove = FALSE)
+
+head(mendota_interval)
+```
+
+- Note that `year1` and `year2` are both  character valued
+    - Change `year1` to a number and recalculate `year2`
+    
+```{r}
+mendota_interval = mendota_interval %>%
+  mutate(year1 = as.numeric(year1)) %>%
+  mutate(year2 = year1 + 1)
+
+head(mendota_interval)
+```
+
+- Next, work on the dates
+- We need to use **lubridate** and **stringr** functions for this.
+- The variables `closed` and `open` contain the month and day, but the correct year is `year1` for months July through December and `year2` for January through June.
+- Here, we use `case_when()` inside of `mutate()` for conditional changes.
+- Any date that does not match either of the first two cases will match `TRUE` and be given the specific character value for missing data, `NA_character_`.
+- The function `str_c()` create a string by combining strings together.
+- The function `str_detect()` returns `TRUE` or `FALSE` if a pattern is detected in a string.
+    - These are functions from **stringr** which we will study in more detail later in the course
+- The new strings are in the order day, month, year
+- The **lubridate** function `dmy()` converts a string with this order into a date.
+    - There are other similar variables, such as `mdy()` and `ymd()`.
+
+```{r}
+mendota_interval = mendota_interval %>%
+## add the correct year to the month and day for the closed and open columns
+  ## then convert the strings to dates with dmy()
+  mutate(closed = case_when(
+    str_detect(closed,"Jul|Aug|Sep|Oct|Nov|Dec") ~ str_c(closed,' ',year1),
+    str_detect(closed,"Jan|Feb|Mar|Apr|May|Jun") ~ str_c(closed,' ',year2),
+    TRUE ~ NA_character_
+  )) %>%
+  mutate(closed = dmy(closed)) %>%
+  mutate(open = case_when(
+    str_detect(open,"Jul|Aug|Sep|Oct|Nov|Dec") ~ str_c(open,' ',year1),
+    str_detect(open,"Jan|Feb|Mar|Apr|May|Jun") ~ str_c(open,' ',year2),
+    TRUE ~ NA_character_
+  )) %>%
+  mutate(open = dmy(open)) %>% 
+  ## recalculate the number of days closed with ice
+  mutate(duration = as.numeric(open - closed))
+
+head(mendota_interval)
+```
+
+### case_when()
+
+- The syntax of `case_when()` inside of `mutate()` is as follows:
+
+```{r, eval = FALSE}
+data_set %>% 
+  mutate( `new-variable-name` = case_when(
+    `first condition` ~ `value for rows when TRUE`,
+    `second condition` ~ `value for rows when TRUE`,
+    ...
+  ))
+```
+
+Note that:
+
+- All values need to be the same type
+    - That is why we use `NA_character_` which represents missing data of character type
+    - Any rows which match a condition are not changed if they also match a subsequent condition
+    - The last row with `TRUE` on the left matches every row and specifies the default value for any case which matched nothing before
+    - If a row were to match nothing, it would be given the appropriate type of missing value, so the line with the condition `TRUE` was not required
+    
+### Create the winter summary data set
+
+- Next, we want to create a second data set with one row per winter
+    - `duration` is the sum of all of the durations
+    - `first_freeze` is the earliest close date
+    - `last_thaw` is the latest open date
+
+```{r}
+## create a new data set with one row per winter
+## we only need to group by winter to do the summary
+## also group by year1 and year2 so we retain these variables after summarize()
+mendota = mendota_interval %>% 
+  group_by(winter, year1, year2) %>% 
+  summarize(intervals = n(),
+            duration = sum(duration),
+            first_freeze = min(closed),
+            last_thaw = max(open))
+
+head(mendota)
+```
+
+- Finally, add a decades variable as a string.
+- `floor()` rounds down to the nearest integer
+- By dividing by 10, rounding down, and multiplying again by ten, we round down to the nearest decade
+
+```{r}
+mendota = mendota %>%
+  mutate(decade = floor(year1 / 10) * 10)
+
+head(mendota)
+```
+
+- Finally, use `relocate`()` to change the column order
+
+```{r}
+mendota = mendota %>%
+## reorder the columns
+  relocate(winter, year1, year2, decade)
+
+head(mendota)
+```
+
+#### Combining the steps
+
+- In practice, we may put all of the code to transform these data into a single R chunk.
+    - We would build the code by doing each step and verifying the results before adding the next one.
+    
+```{r}
+## transform interval data
+mendota_interval = mendota_raw %>%
+  select(-days) %>% 
+  drop_na() %>% 
+  separate(winter,into = c("year1","year2"), remove = FALSE) %>% 
+    mutate(year1 = as.numeric(year1)) %>%
+  mutate(year2 = year1+1) %>% 
+      mutate(closed = case_when(
+    str_detect(closed,"Jul|Aug|Sep|Oct|Nov|Dec") ~ str_c(closed,' ',year1),
+    str_detect(closed,"Jan|Feb|Mar|Apr|May|Jun") ~ str_c(closed,' ',year2),
+    TRUE ~ NA_character_
+  )) %>%
+  mutate(closed = dmy(closed)) %>%
+  mutate(open = case_when(
+    str_detect(open,"Jul|Aug|Sep|Oct|Nov|Dec") ~ str_c(open,' ',year1),
+    str_detect(open,"Jan|Feb|Mar|Apr|May|Jun") ~ str_c(open,' ',year2),
+    TRUE ~ NA_character_
+  )) %>%
+  mutate(open = dmy(open)) %>% 
+  mutate(duration = as.numeric(open - closed))
+
+## summarize per year
+mendota = mendota_interval %>% 
+  group_by(winter, year1, year2) %>% 
+  summarize(intervals = n(),
+            duration = sum(duration),
+            first_freeze = min(closed),
+            last_thaw = max(open)) %>% 
+     mutate(decade = floor(year1 / 10) * 10) %>% 
+    select(winter, year1, year2, decade, everything())
+```
+    
+## Madison Weather Overview
+
+- We will be working with data set containing weather data on Madison collect over a number of years from  different weather stations.
+- In addition to investigating different scientific questions on the data, we will also be learning about the [`dplyr` package](https://dplyr.tidyverse.org/) from `tidyverse` which is "a grammar of data manipulation."  
+
+## Overview of Madison Weather Data
+
+> The source of the data for this week is from the National Oceanic and Atmospheric Administration (NOAA) of the United States.
+
+- See [CNCS Chapter 7](https://bookdown.org/bret_larget/stat-240-case-studies/madison-weather.html) for more information.
+- The data set described here includes data through December 31, 2
+
+- The data file is `madison-weather-1869-2022.csv`, and the variable descriptions are provided below.
+
+STATION: unique code for the weather station   
+NAME: station name    
+LATITUDE: station latitude  
+LONGITUDE: station longitude  
+ELEVATION: station elevation (feet above sea level)   
+DATE: date of observations  
+PRCP: precipitation (inches, water)  
+SNOW: snow fall (inches)  
+SNWD: snow depth (inches)  
+TAVG: daily average air temperature (degrees Fahrenheit)   
+TMAX: maximum air temperature (degrees Fahrenheit)   
+TMIN: minimum air temperature (degrees Fahrenheit)   
+
+### Import Data
+
+- The data file has one row for each date and weather station.
+- The following block of code will read in the data.
+    - We specify the types of data in each column.
+    - This prevents an error where some variables with many initial rows of contain missing data and are set to be logical instead of numeric.
+    
+```{r}
+## Read in the data
+## Specify the type
+## This is needed to avoid issues for columns where first 1000 rows are all missing
+##   and the type is set to logical
+
+mw_original = read_csv("../../data/madison-weather-1869-2022.csv",
+                       col_types = cols(
+                         STATION = col_character(),
+                         NAME = col_character(),
+                         LATITUDE = col_double(),
+                         LONGITUDE = col_double(),
+                         ELEVATION = col_double(),
+                         DATE = col_date(format = ""),
+                         PRCP = col_double(),
+                         SNOW = col_double(),
+                         SNWD = col_double(),
+                         TAVG = col_double(),
+                         TMAX = col_double(),
+                         TMIN = col_number()))
+dim(mw_original)
+
+head(mw_original)
+```
+
+## Transform Data
+
+- I do not like using all capital letters for the variable names.
+    - Let's change names using the `rename()` function.
+- We will save the changed data in an object named `mw`.    
+
+```{r}
+## rename the variables
+mw = mw_original %>%
+  rename(station = STATION,
+         name = NAME,
+         latitude = LATITUDE,
+         longitude = LONGITUDE,
+         elevation = ELEVATION,
+         date = DATE,
+         prcp = PRCP,
+         snow = SNOW,
+         snow_depth = SNWD,
+         tavg = TAVG,
+         tmax = TMAX,
+         tmin = TMIN)
+```
+
+- The values in the `name` variable are long and unwieldly.
+- Change them using the `recode()` function inside of `mutate()`
+    - We use `mutate()` to create new variables or modify existing variables
+    - `recode()` is different than most **tidyverse** variables which change values
+    - Most use the idiom `new = old`, but `recode()` is backwards.
+    - This is an oddity of the language you just need to remember (or look up when there is an unexpected error).
+
+```{r}
+mw = mw %>% 
+  mutate(name = recode(name,
+                       `UW ARBORETUM MADISON, WI US` = "Arboretum",
+                       `CHARMANY FARM, WI US` = "Charmany",
+                       `MADISON DANE CO REGIONAL AIRPORT, WI US` = "Airport",
+                       `MADISON WEATHER BUREAU CITY, WI US` = "Bureau"))
+```
+
+## Weather Stations
+
+- Some of the variables refer to the weather stations and do not change.
+- Let's make a summary with one row per weather station where we can specify:
+    - The station code
+    - The earliest date included
+    - The latest date included
+    - The number of dates included in the data set
+    - The number of dates that are missing
+- Here is the strategy:
+    - use `group_by()` to do the calculations for each weather station separately
+    - compare the total number of possible dates from the earliest to latest dates with the actual number of values for each
+    
+```{r}
+stations = mw %>% 
+  select(station, name, latitude, longitude, elevation, date) %>% 
+  group_by(station, name, latitude, longitude, elevation) %>% 
+  summarize(first_date = min(date),
+            last_date = max(date),
+            n = n(),
+            possible = as.numeric(last_date - first_date) + 1,
+            missing = possible - n)
+stations
+```
+    
+- The official weather station was the Madison Weather Bureau from January 1, 1869 until September 30, 1939 and then the Airport from October 1, 1939 to the present.
+- The weather stations at the Arboretum and Charmany Farms have a great deal of missing data.
+- We will modify the `mw` data set by:
+    - eliminating the station-specific variables
+    - eliminating observations from the Arboretum and Charmany Farms
+    - arranging by date
+- We can create an official Madison weather data set with one observation per date
+
+```{r}
+mw = mw %>%
+  select(name, date, prcp, snow, snow_depth, tmin, tmax, tavg) %>% 
+  filter(name == "Airport" | name == "Bureau") %>%
+  arrange(date, name)
+
+official = mw %>% 
+  filter(name == "Airport" | (name == "Bureau" & date < ymd("1939-10-01")))
+```
+
+- Let's redo the missing data calculations for the official data
+
+```{r}
+official_stations = official %>% 
+  select(name, date) %>% 
+  group_by(name) %>% 
+  summarize(first_date = min(date),
+            last_date = max(date),
+            n = n(),
+            possible = as.numeric(last_date - first_date) + 1,
+            missing = possible - n)
+official_stations
+```
+
+- The official record is missing just seven days.
+- We will explore this next.
+
+## Missing Data
+
+- There are seven missing dates in the official records.
+- In addition, there may be some missing data among the precipation and temperature data.
+- We will first add in the missing dates with missing data for all variables
+- Then, we will count missing data in each column of data.
+
+- To add missing dates, we will create a data frame with all dates from January 1, 1869 through September 30, 1939, and then join it to the official weather data set.
+
+```{r}
+## Create a temporary data file
+temp = tibble(
+  date = seq(ymd("1869-01-01"), ymd("1939-09-30"), 1),
+  name = "Bureau")
+
+## join with the official data set
+## show this adds the seven missing dates
+nrow(official)
+
+official = official %>% 
+  full_join(temp, by = c("name", "date"))
+
+## Note there are now seven more dates added
+nrow(official)
+
+## Eliminate the temporary data set
+rm(temp)
+```
+
+- Next, count the missing observations in each variable
+- We create a function to count missing observations.
+- We cannot use comparisons such as `==` to compare with `NA`.
+- Instead, use `is.na()`.
+- We will learn more about writing functions later in the course.
+
+```{r}
+count_na = function(x)
+{
+  return( sum(is.na(x)) )
+}
+  
+```
+
+- Do the summary of missing data
+
+```{r}
+official_summary = official %>% 
+  summarize(prcp_na = count_na(prcp),
+            snow_na = count_na(snow),
+            depth_na = count_na(snow_depth),
+            tmax_na = count_na(tmax),
+            tmin_na = count_na(tmin),
+            tavg_na = count_na(tavg))
+
+official_summary
+```
+
+- There is a lot of missing data for average temperatures.
+- We can recalculate these as the average of the `tmax` and `tmin` variables.
+- There is minimal missing data for precipitation or maximum or minimum temperatures.
+    - Summaries of these variables over the years after dropping missing data are not likely to be too inaccurate
+- Snow and snow depth data has a fair amount missing.
+    - Much of this is because the data was not recorded at the beginning of the collection period.
+    
+#### Applying the same function to multiple columns
+
+- The previous R chunk created a summary by calling the same function on several columns of data.
+- With only six columns, this was not too awful, but imagine if there were more than 100 columns; there must be a better way to apply the same function to multiple columns without typing their names one by one
+- We can use `across()`
+
+```{r}
+official_summary2 = official %>% 
+  summarize(across(prcp:tavg, count_na))
+
+official_summary2
+```
+
+- The first argument to `across()` specifies the columns to apply the function to.
+  - Here, the colon operator includes all columns from `prcp` through `tmax`.
+  - By default, it is all columns.
+- The second argument specifies the function (or functions) to apply the column to; here, just one
+  
+#### Snow data
+
+- Let's take a closer look at the pattern of missing data for the two snow variables
+
+```{r}
+official %>% 
+  select(name, date, snow) %>% 
+  drop_na() %>% 
+  summarize(first_snow = min(date))
+
+official %>% 
+  select(name, date, snow_depth) %>% 
+  drop_na() %>% 
+  summarize(first_snow_depth = min(date))
+```
+    
+- If we analyze the snow data, we will need to use a different time range.
+- Also, some NA snow totals in the summer or when precipitation is zero may really be zero and not missing.
+- We can count missing data by month and then plot the results
+
+```{r}
+snow_sum = official %>% 
+  mutate(month = month(date, label = TRUE)) %>% ## here, month() is a lubridate command
+  group_by(month) %>% 
+  summarize(n = n(),
+            missing = count_na(snow),
+            p = missing / n)
+
+ggplot(snow_sum, aes(x = month, y = p)) +
+  geom_col(fill = "blue") +
+  scale_y_continuous(labels = scales::percent) +
+  xlab("Month") +
+  ylab("Percent of Missing Data") +
+  ggtitle("Madison weather: daily snowfall missing data percentages by month",
+          subtitle = "1869 - 2021")
+```
+
+
+```{r}
+snow_sum2 = official %>% 
+  mutate(year = year(date)) %>%
+  group_by(year) %>% 
+  summarize(n = n(),
+            missing = count_na(snow),
+            p = missing / n)
+
+ggplot(snow_sum2, aes(x = year, y = p)) +
+  geom_segment(aes(x = year, xend = year, yend = 0 )) +
+  scale_y_continuous(labels = scales::percent) +
+  xlab("Year") +
+  ylab("Percent of Missing Data") +
+  ggtitle("Madison weather: daily snowfall missing data percentages by year",
+          subtitle = "1869 - 2021")
+
+## Years since 1900
+snow_sum2 %>% 
+  filter(year > 1899) %>% 
+ggplot(aes(x = year, y = p)) +
+  geom_segment(aes(xend = year, yend = 0 )) +
+  scale_y_continuous(labels = scales::percent) +
+  xlab("Year") +
+  ylab("Percent of Missing Data") +
+  ggtitle("Madison weather: daily snowfall missing data percentages by year",
+          subtitle = "1869 - 2021")
+```
+
+
+## Repair average temperature
+
+```{r}
+official = official %>% 
+  mutate(tavg = (tmin + tmax) / 2)
+```
+
+## Write files
+
+- It will be helpful to write the modified official weather data into a file so that we do not need to redo the data transformations each time
+
+```{r, eval = TRUE}
+write_csv(official,
+          "../../data/madison-weather-official-1869-2022.csv")
+```
+
+## Lecture Questions
+
+- In this lecture, we will pose a number of questions and then work interactively to solve as many as we can.
+- The notes will include solutions for the questions we do not get to.
+
+## Official Weather Data
+
+- Begin by reading in the official weather data
+
+```{r}
+## read in the data
+official = read_csv("../../data/madison-weather-official-1869-2022.csv")
+                    # col_types = cols( name = col_character(),
+                    #                   date = col_date(format = ""),
+                    #                   prcp = col_double(),
+                    #                   snow = col_double(),
+                    #                   snow_depth = col_double(),
+                    #                   tmin = col_double(),
+                    #                   tmax = col_double(),
+                    #                   tavg = col_double()))
+```
+
+## Annual average temperature
+
+> Create a summary table of the data with the average temperature per year. Then, make an effective plot of this data to show patterns over time and variation around the main pattern.
+
+
+#### Strategy
+
+- Calculate the average temperature per year
+    - Select variables
+    - Drop missing values
+    - Group and summarize
+- Plot versus the year
+- Examine trends
+
+#### Live Coding
+
+```{r}
+### calculate the average temperatures
+prob1 = official %>% 
+  mutate(year = year(date)) %>% 
+  select(date, year, tavg) %>% 
+  drop_na() %>% 
+  group_by(year) %>% 
+  summarize(tavg = mean(tavg))
+```
+
+```{r}
+### plot the trend
+ggplot(prob1, aes(x = year, y = tavg)) +
+  geom_line() + 
+  geom_point() +
+  geom_smooth(se = FALSE) +
+  xlab("Year") +
+  ylab("Temperature (F)") +
+  ggtitle("Average Temperature over Time",
+          subtitle = "Madison, 1869-2021")
+```
+
+
+
+
+#### Prepared Solution
+
+```{r}
+mw1 = official %>% 
+  ## select date and tavg; no other variables needed
+  select(date, tavg) %>% 
+  ## drop any rows with missing data (this is why we did select() first)
+  drop_na() %>% 
+  ## use the lubridate function year() to extract the year from the date
+  mutate(year = year(date)) %>% 
+  ## group by year
+  group_by(year) %>% 
+  ## calculate the average temperature by each year
+  summarize(tavg = mean(tavg))
+
+mw1
+```
+
+- Now, plot the data
+
+```{r}
+ggplot(mw1, aes(x = year, y = tavg)) +
+  geom_line() +
+  geom_smooth(se = FALSE) +
+  xlab("Year") +
+  ylab("Temperature (F)") +
+  ggtitle("Madison Average Annual Temperature Over Time",
+          subtitle = "1869-2021")
+```
+
+- The pattern we see is:
+    - the average temperature increased from about 45.5 degrees Fahrenheit in 1870 up to about 46.8 degrees around 1940.
+    - then, temperatures went down for about 30 years, bottoming out in 1970 at about 45.9 degrees
+    - since then, the average temperature has increased over 2 degrees Fahrenheit
+    - the rate that the average temperature is increasing is accelerating
+
+## Temperature by 30-year period
+
+> Meteorologists often determine weather norms by averaging over a 30-year period. Create a variable which partitions the data into 30-year periods from 1871-1900, 1901-1930, and so on. Ignore the years before 1871 and 2021.
+
+#### Live Coding
+
+> Add a `period30` variable to the data set.
+
+```{r}
+prob2 = official %>% 
+  mutate(year = year(date),
+         month = month(date, label = TRUE)) %>% 
+  filter(year > 1870 & year < 2021) %>% 
+  mutate(period30 = case_when(
+    year > 1870 & year <= 1900 ~ "1871-1900",
+    year > 1900 & year <= 1930 ~ "1901-1930",
+    year > 1930 & year <= 1960 ~ "1931-1960",
+    year > 1960 & year <= 1990 ~ "1961-1990",
+    year > 1990 & year <= 2020 ~ "1991-2020"))  
+
+check = prob2 %>% 
+  select(period30, year) %>% 
+  distinct() %>% 
+  count(period30)
+```
+
+> Calculate the average maximum, minimum, and average temperatures by month and period
+
+```{r}
+prob2_sum = prob2 %>% 
+  select(date, year, month, period30, tmax, tmin, tavg) %>% 
+  drop_na() %>% 
+  group_by(month, period30) %>% 
+  summarize(n = n(),
+            tmax = mean(tmax),
+            tmin = mean(tmin),
+            tavg = mean(tavg))
+```
+
+> See prepared solution for a plot
+
+#### Prepared Solution
+
+- We will ignore the years 1869, 1870, and 2021 to create five 30-year periods.
+- The first period is 1871 - 1900, the second 1901 - 1930, and so on.
+    
+```{r}
+## add year and period variables to the official data set
+## Note that the formula floor( (year - 1841)/30 )*30 + 1841 maps:
+##    the years from 1841 to 1870 to 1841;
+##    the years from 1871 to 1900 to 1871; and so on
+## This value plus 29 is the end of the period
+## Use str_c() from stringr to combine the different strings into the period value
+##   1841 - 1870, 1871 - 1900, 1901 - 1930, 1931 - 1960, 1961 - 1990, 1991 - 2020
+official = official %>% 
+  mutate(year = year(date),
+         month = month(date, label = TRUE),
+         period1 = floor( (year - 1841)/30 )*30 + 1841,
+         period = str_c(period1, "-", period1 + 29))
+```
+
+> Let's find the means of the maximum, average, and minimum temperatures by period and month.
+
+```{r}
+## Now group by period and month and calculate the averages
+mw2 = official %>% 
+  filter(year > 1870 & year < 2021) %>% 
+  select(date, year, month, period, tmin, tavg, tmax) %>% 
+  drop_na() %>% 
+  group_by(period, month) %>% 
+  summarize(n = n(), tmin = mean(tmin),
+            tavg = mean(tavg), tmax = mean(tmax))
+```
+
+- Plot the data
+    - Use different facets by month
+    - Line plots
+    - Line color associated with min / avg / max
+    
+```{r, fig.height = 8}
+g = ggplot(mw2, aes(x = period)) +
+  geom_line(aes(y = tmin, group = 1), color = "blue") +
+  geom_line(aes(y = tavg, group = 1), color = "purple") +
+  geom_line(aes(y = tmax, group = 1), color = "red") +  
+  geom_point(aes(y = tmin, group = 1), color = "blue") +
+  geom_point(aes(y = tavg, group = 1), color = "purple") +
+  geom_point(aes(y = tmax, group = 1), color = "red") +  
+  xlab("") +
+  ylab("Temperature (Fahrenheit)") +
+  ggtitle("Madison Mean Temperature by Month",
+          subtitle = "Red = maximum, Purple = average, Red = low") +
+  theme( axis.text.x = element_text(angle = 45, hjust=1)) +
+  facet_wrap(vars(month))
+
+g
+```
+
+- If we use different scales for each month, it will be easier to see trends within the months
+    
+```{r, fig.height = 8}
+g + 
+  facet_wrap( vars(month), scales = "free")
+```
+
+- There are differences among months in changes in average temperatures over time
+- The largest increases in maximum temperature have occurred in the colder months, November through March.
+- Many months saw a decrease in mean low temperature, with some trending higher in the past thirty years
+
+## Daily Temperature Records
+
+- Find the daily maximum and minimum temperatures for each day of the year in different data frames
+- Record the year and the temperature for each record
+- If there are ties, have a separate row for each year
+  - So, the resulting tables may have more than 366 rows.
+- The command `slice_max()` will do what we want, finding the top values including ties.
+
+#### Live Coding
+
+```{r}
+official = official %>% 
+  mutate(year = year(date),
+         month = month(date, label = TRUE),
+         day = day(date))
+
+prob3_tmax_max = official %>% 
+  select(date, year, month, day, tmax) %>% 
+  drop_na() %>% 
+  group_by(month, day) %>% 
+  slice_max(tmax, n = 1)
+  
+prob3_tmin_min = official %>% 
+  select(date, year, month, day, tmin) %>% 
+  drop_na() %>% 
+  group_by(month, day) %>% 
+  slice_min(tmin, n = 1)
+
+
+  # summarize(n = n(),
+  #           max = max(tmax),
+  #           avg = mean(tmax),
+  #           min = min(tmax))
+```
+
+
+
+#### Prepared Solution
+
+```{r}
+official = official %>% 
+  mutate(year = year(date),
+         month = month(date, label=TRUE),
+         day = day(date))
+```
+
+- Calculations for record high and low maximum and minimum daily temperatures
+
+```{r}
+daily_tmax_high = official %>% 
+  select(date, year, month, day, tmax) %>% 
+  drop_na() %>% 
+  group_by(month, day) %>%
+  slice_max(tmax, n=1) %>% 
+  ungroup()
+
+daily_tmax_low = official %>% 
+  select(date, year, month, day, tmax) %>% 
+  drop_na() %>% 
+  group_by(month, day) %>%
+  slice_min(tmax, n=1) %>% 
+  ungroup()
+
+daily_tmin_high = official %>% 
+  select(date, year, month, day, tmin) %>% 
+  drop_na() %>% 
+  group_by(month, day) %>%
+  slice_max(tmin, n=1) %>% 
+  ungroup()
+
+daily_tmin_low = official %>% 
+  select(date, year, month, day, tmin) %>% 
+  drop_na() %>% 
+  group_by(month, day) %>%
+  slice_min(tmin, n=1) %>% 
+  ungroup()
+```
+
+## Questions
+
+#### Leave these as practice ....
+
+> On what date did Madison have the highest recorded temperature? What was the this temperature and how many different times was it achieved?
+
+```{r}
+daily_tmax_high %>% 
+  slice_max(tmax, n=1)
+```
+
+- On July 14, 1936, Madison had an all-time high temperature of 107.
+- This is the only date with a high temperature this high
+
+> Which dates have the most ties for the highest temperature?
+
+```{r}
+daily_tmax_high %>% 
+  count(month, day) %>% 
+  ungroup() %>% 
+  slice_max(n)
+
+daily_tmax_high %>% 
+  filter(month == "May", day == 17)
+```
+
+- The May 17 record high of 86 degrees has been achieved five times: 1906, 1962, 1971, 1987, and 2001.
+
+> What is the record latest date in the first six months of the year where the daily minimum temperature was below 32 degrees Fahrenheit? In which years did this occur?
+
+```{r}
+daily_tmin_low %>% 
+  filter(month < "Jul", tmin < 32) %>% 
+  arrange(desc(month), desc(day)) %>% 
+  head()
+```
+
+- On June 10, 1972, the low temperature in Madison was 31 degrees Fahrenheit. This is the latest spring frost recorded.
+
+## Days with Precipitation
+
+> Make a summary table of the number of days for each 30-year period and month with the proportion of days with precipitation
+
+```{r}
+prob4 = prob2 %>% 
+  select(date, year, month, period30, prcp) %>% 
+  drop_na() %>% 
+  mutate(any_prcp = case_when(
+    prcp > 0 ~ "some precipitation",
+    prcp == 0 ~ "no precipitation")) %>% 
+  count(month, period30, any_prcp) %>% 
+  group_by(month, period30) %>% 
+  mutate(p = n / sum(n))
+  
+```
+
+> Plot proportions versus period with a stacked bar graph with a different facet for each month
+
+```{r}
+
+```
+
+> Repeat, but unstack the bars
+
+```{r}
+
+```
+
+#### Prepared Solution
+
+```{r}
+mw4 = official %>% 
+  mutate(year = year(date),
+         month = month(date, label = TRUE)) %>% 
+  filter(year > 1870 & year < 2021) %>% 
+  mutate(year1 = floor((year - 1841)/30)*30 + 1841,
+         year2 = year1 + 29,
+         period30 = str_c(year1, "-", year2)) %>% 
+  select(-year1, -year2)
+
+check = mw4 %>% 
+  select(year, period30) %>% 
+  distinct() %>% 
+  group_by(period30) %>% 
+  summarize(min = min(year), max = max(year))
+```
+
+- Calculate the data summary
+
+```{r}
+mw4_sum = mw4 %>% 
+  select(period30, year, month, prcp) %>% 
+  drop_na() %>% 
+  mutate(prcp_cat = case_when(
+    prcp > 0 ~ "some precipitation",
+    prcp == 0 ~ "no precipitation")) %>% 
+  count(period30, month, prcp_cat) %>% 
+  group_by(period30, month) %>% 
+  mutate(p = n / sum(n))
+```
+
+- Plot stacked bar plot
+
+```{r, fig.height = 6}
+ggplot(mw4_sum, aes(y = period30, x = p, fill = prcp_cat)) +
+  geom_col() +
+  scale_x_continuous(label = scales::percent) +
+  scale_y_discrete(limits = rev) +
+  xlab("Percentage") +
+  ylab("Time Period") +
+  ggtitle("Proportion of Days with Precipitation by Month",
+          subtitle = "Madison, 1871 - 2020") +
+  scale_fill_viridis_d() +
+  guides(fill = guide_legend(title = "Precipitation")) +
+  theme(legend.position = "bottom") +
+  facet_wrap(vars(month))
+```
+
+- Plot with bars side by side
+
+```{r, fig.height = 6}
+ggplot(mw4_sum, aes(y = period30, x = p, fill = prcp_cat)) +
+  geom_col(position = position_dodge2(preserve = "single")) +
+  scale_x_continuous(label = scales::percent) +
+  scale_y_discrete(limits = rev) +
+  xlab("Percentage") +
+  ylab("Time Period") +
+  ggtitle("Proportion of Days with Precipitation by Month",
+          subtitle = "Madison, 1871 - 2020") +
+  scale_fill_viridis_d(end = 0.5) +
+  guides(fill = guide_legend(title = "Precipitation")) +
+  theme(legend.position = "bottom") +
+  facet_wrap(vars(month))
+```
+
+- Note: the viridis color scale has:
+  - `begin = 0` which is violet and 
+  - `end = 1` which is yellow
+- You can set `begin` and/or `end` to other values to use colors in part of the range instead of the full range.
+
+
+
+

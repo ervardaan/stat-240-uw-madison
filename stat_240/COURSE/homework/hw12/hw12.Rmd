@@ -1,0 +1,223 @@
+---
+author: "YOUR NAME HERE"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, error = TRUE, fig.height = 4)
+library(tidyverse)
+library(lubridate)
+library(modelr)
+source("../../scripts/viridis.R")
+source("../../scripts/ggprob.R")
+```
+
+\renewcommand{\prob}{\mathsf{P}}
+\newcommand{\E}{\mathsf{E}}
+\newcommand{\Var}{\mathsf{Var}}
+\newcommand{\SD}{\mathsf{SD}}
+\newcommand{\SE}{\mathsf{SE}}
+
+## Homework Assignment 12
+
+#### Use for Final Exam Study
+
+### Preliminaries
+
+- Directories
+    - COURSE/homework/
+    - COURSE/homework/hw12/
+    - COURSE/data/
+    - COURSE/scripts/
+- Files
+  - COURSE/homework/hw12/hw12.Rmd
+  - COURSE/data/lake-monona-winters-2022.csv
+  - COURSE/scripts/viridis.R
+  - COURSE/scripts/ggprob.R
+
+### Data
+
+The data set `lake-monona-winters-2022.csv` contains the date in which Lake Monona first freezes for each winter from 1855--1856 through 2021--2022.
+After transformations in the next code block,
+the variable `year1` is the first year of each winter and the variable `y` encodes the first freeze date as the number of days after June 30, so a value $y = 1$ is July 1, $y = 32$ is August 1, and $y = 185$ is January 1 of the following year.
+
+```{r, include = FALSE}
+monona = read_csv("../../data/lake-monona-winters-2022.csv") %>% 
+  mutate(y = ff_x) %>% 
+  select(winter, year1, first_freeze, y)
+
+ggplot(monona, aes(x = year1, y = y)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  xlab("Winter (first year)") +
+  ylab("First Freeze Days After June 30")
+
+monona_lm = lm(y ~ year1, data = monona)
+```
+
+### Aims
+
+- Practice regression inference
+
+## Problems
+
+### 1
+
+Fit a linear model to predict the value of $y$ (the date where Lake Monona first freezes measured in days after June 30) as a function of the first year of the winter, `year1`.
+
+- Report the coefficients of this linear model.
+
+```{r}
+
+
+```
+
+
+
+
+### 2
+
+- Use the **modelr** functions `add_residuals()` and `add_predictions()` to add columns for the residuals and predictions to the fitted model.
+- Make a plot of the residuals versus the first year of winter.
+  - Add a horizontal line with y-intercept zero.
+- Comment on patterns in the residual plot which may or may not suggest either non-linearity or non-constant variance
+
+```{r}
+
+```
+
+
+
+
+### 3
+
+- Create a 95% confidence interval for the slope parameter.
+(The interval is calculated as $\text{(Estimate)} \pm t^*\text{(SE)}$ where $t^*$ is an appropriate critical quantile from a t distribution with $n-2$ degrees of freedom in the case of simple linear regression.)
+- Interpret the confidence interval in context.
+
+You may use `summary()` to print the linear model summary.
+Alternatively, the following function returns the standard errors from the fitted linear model object as a base R vector.
+
+```{r}
+## example usage
+## model = lm(y ~ x)
+## se = lm_se(model)
+##
+lm_se = function(model)
+{
+  return ( sqrt(diag(vcov(model))) )
+}
+```
+
+
+
+
+
+
+### 4
+
+- Assume that a linear model between the first freeze date (coded as #days after June 30) and first year of winter is appropriate for the Lake Monona data and that you can interpret this model as a feature of the climate in Madison over time for the past 160+ years.
+- Examine code below which creates a 95% confidence interval for the expected date for Lake Monona to first freeze in the winter of 2022-2023. *(Note: the fitted regression line is an estimate of the location of this hypothetical feature of climate change over time.)*
+- Interpret the confidence interval in context (use actual dates rather than coded days after June 30).
+- Make a scatter plot of the coded first freeze date versus year and add the plot of a regression line with a ribbon using `geom_smooth()`.
+- Explain what feature of the ribbon corresponds to the confidence interval you calculated.
+
+
+```{r}
+## confidence interval using predict()
+new_data = tibble(
+  year1 = 2022
+)
+
+predict(monona_lm, new_data, interval = "confidence") %>% 
+  round(digits = 1)
+```
+
+
+
+
+### 5
+
+- The following block of code uses a fitted linear model to create a 95% prediction interval for the individual date in the 2022-2023 winter when Lake Monona will first freeze.
+- Interpret the interval in context (use dates and not numerical values).
+- Explain what feature of the provided plot corresponds to this prediction interval.
+
+```{r}
+predict(monona_lm, new_data, interval = "prediction") %>% 
+  round(digits = 1)
+
+full_prediction = predict(monona_lm, monona,
+                          interval = "prediction") %>% 
+  as_tibble()
+
+monona = monona %>% 
+  mutate(pred_lwr = full_prediction$lwr,
+         pred_upr = full_prediction$upr)
+  
+ggplot(monona, aes(x = year1, y = y)) +
+  geom_ribbon(aes(ymin = pred_lwr, ymax = pred_upr),
+              alpha = 0.2, fill = "blue") +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  geom_vline(xintercept = 2022, color = "red") +
+  xlab("Winter (first year)") +
+  ylab("First Freeze Days After June 30")
+```
+
+
+
+
+### 6
+
+The previous problems modeled the first freeze date of Lake Mendota during the 2022-2023 winter based on data from the previous 167 years. The estimate of the standard deviation of individual variation around the true regression line is $\hat{\sigma} = `r round(sigma(monona_lm))`$.
+
+- What is the unit of measurement for $\hat{\sigma}$?
+
+> [Response]
+
+Assume that a linear model between `y` (date of the first freeze after June 30) and `year1` (first year of the winter) is appropriate for another 100 years.
+
+- Without making a calculation, using the 167 years of data from the winter of 1855-56 through the winter of 2021-2022, will the width of the confidence interval for the expected first freeze date in the winter of 2100-2101 be wider than, the same width as, or narrower than the width you found in Problem 4? Briefly explain.
+
+> [Response]
+
+
+
+
+
+
+### 7
+
+Assume that a linear model between `y` (date of the first freeze after June 30) and `year1` (first year of the winter) is appropriate for another 100 years and that we have data from the winter of 1855-56 through the winter of 2099-2100.
+Assume as well that the estimate of $\hat{\sigma}$ is unchanged after adding the additional 78 winters of data (so $n = 245$ in this hypothetical data set).
+We are interested in confidence and prediction intervals for the date of the first freeze when $x^* = 2100$.
+
+- Will the confidence interval for the expected first freeze date in the winter of 2100-2101,
+$\E(\hat{y} \,\mid\, x^* = 2100)$,
+be wider than, the same width as, or narrower than the width you found in Problem 4? Briefly explain.
+
+> [Response]
+
+- Will the prediction interval for the first freeze date in the winter of 2100-2101 be wider than, the same width as, or narrower than the width you found in Problem 5? Briefly explain.
+
+> [Response]
+
+
+
+
+
+
+### 8
+
+Briefly explain how the following violations of linear regression models might affect the validity of the confidence and prediction intervals from Problem 7.
+
+
+- Non-linearity in the true relationship between first freeze date and year.
+
+> [Response]
+
+- A moderately skewed error distribution.
+
+> [Response]
+
+

@@ -1,0 +1,120 @@
+---
+title: "week 13 practice"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      error = TRUE, fig.height = 4)
+library(tidyverse)
+library(kableExtra)
+
+source("../../scripts/viridis.R")
+source("../../scripts/ggprob.R")
+
+theme_set(theme_minimal())
+```
+
+
+### Read in exoplanet data
+
+```{r}
+planets = read_csv("../../data/exoplanets-clean-through-2022.csv")
+```
+
+### Plots
+
+```{r}
+ggplot(planets, aes(x = mass, y = radius)) +
+  geom_point() +
+  xlab("Radius (Earth Radius)") +
+  ylab("Mass (Earth Mass)")
+```
+
+```{r}
+ggplot(planets, aes(x = mass)) +
+  geom_density()
+
+ggplot(planets, aes(x = radius)) +
+  geom_density()
+```
+
+
+```{r}
+ggplot(planets, aes(x = mass, y = radius)) +
+  geom_point() +
+  xlab("Mass (Earth Mass)") +
+  ylab("Radius (Earth Radius)") +
+  scale_x_log10() +
+  scale_y_log10() +
+  geom_smooth(se=FALSE) +
+  geom_smooth(method="lm", se=FALSE, color="magenta")
+```
+
+
+### Subset of the data
+
+```{r}
+mr = planets %>%
+  filter(between(mass, 2, 127)) %>%
+  drop_na()
+
+ggplot(mr, aes(x = mass, y = radius)) +
+  geom_point() +
+  xlab("Mass (Earth Mass)") +
+  ylab("Radius (Earth Radius)") +
+  scale_x_log10() +
+  scale_y_log10() +
+  geom_smooth(se=FALSE) +
+  geom_smooth(method="lm", se=FALSE, color="magenta")
+```
+
+```{r}
+ggplot(mr, aes(x = log10(mass), y = log10(radius))) +
+  geom_point() +
+  xlab("log10 Mass (Earth Mass)") +
+  ylab("log 10 Radius (Earth Radius)") +
+#  scale_x_continuous(trans = "log10") +
+#  scale_y_continuous(trans = "log10") +
+#  scale_x_log10() +
+#  scale_y_log10() +
+  geom_smooth(se=FALSE) +
+  geom_smooth(method="lm", se=FALSE, color="magenta")
+```
+
+#### fit lm()
+
+```{r}
+lm1 = lm(log10(radius) ~ log10(mass), data = mr)
+summary(lm1)
+```
+
+#### coef from lm summary
+
+```{r}
+coef(summary(lm1))
+
+## slope
+slope = coef(summary(lm1))[2,1]
+slope
+
+coef(lm1)[2]
+
+slope_se = coef(summary(lm1))[2,2]
+slope_se
+
+## original scale estimate of C
+10^coef(lm1)[1]
+```
+
+#### residuals
+
+```{r}
+library(modelr)
+mr = mr %>%
+  mutate(x = log10(mass),
+         y = log10(radius)) %>% 
+  add_residuals(lm1) %>%
+  add_predictions(lm1)
+```
+

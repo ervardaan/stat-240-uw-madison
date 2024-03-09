@@ -1,0 +1,1265 @@
+---
+title: "Joining, Pivoting, and Obesity"
+author: "Bret Larget"
+output: html_document
+---
+
+This R Markdown document includes contributions from Professor Jessi Kehe.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      error = TRUE)
+                    
+library(tidyverse)
+library(lubridate)
+library(kableExtra)
+library(readxl)
+source("../../scripts/viridis.R")
+```
+
+## Setup details
+
+- You will need the packages **tidyverse**, **lubridate**, **readxl**, and **kableExtra**. Make sure to install them if you haven't already.
+  - **readxl** is to read data in from an Excel file
+  - **kableExtra** has facilities to format tables nicely in the output HTML (or PDF) documents when knitting.
+
+- Directories:
+  - `COURSE/data/`
+  - `COURSE/lectures/week5-tidyr/`
+  - `COURSE/scripts/`
+  
+- Files:
+  - `COURSE/scripts/viridis.R`
+  - `COURSE/lectures/week5-tidyr/week5-tidyr.Rmd`
+  - `COURSE/data/DEN-2018.csv`
+  - `COURSE/data/JFK-2018.csv`
+  - `COURSE/data/LAX-2018.csv`
+  - `COURSE/data/MSP-2018.csv`
+  - `COURSE/data/ORD-2018.csv`
+  - `COURSE/data/SFO-2018.csv`
+  - `COURSE/data/Obesity+Prevalence+by+ZIP+Code+and+Age+Group,+Females.xlsx/`
+  - `COURSE/data/Obesity+Prevalence+by+ZIP+Code+and+Age+Group,+Males.xlsx/`
+  - `COURSE/data/obesity.csv`
+  - `COURSE/data/wi_urban_rural.csv`
+  
+
+## Wisconsin Obesity
+
+- The Wisconsin obesity case study involves reading in data from multiple Excel spread sheets and combining this data with data collected by the US Census Bureau
+- Before beginning with the case study, we build skills in joining and reshaping data using functions from the **dplyr** and **tidyr** packages.
+
+## Joining together different data sets
+
+- The package **dplyr** contains six functions with a name that fits the pattern `something_join()` which take two data frames as input and create a single data frame as the output by joining together information from each based on matching values in key columns
+- We have seen a few of these commands earlier, but examine them in detail with some small toy data sets now.
+- Four of the commands are labeled *mutating joins* as they add columns from one data set to another
+- Two of the commands are labeled *filtering joins* as they filter rows from a data set based on the presence or absence of matches in another.
+
+## Mutating joins
+
+- Consider the following two data frames. 
+
+```{r drinks-discounts}
+drinks = tibble(
+  Row = 1:4,
+  Drink = c("Milk Tea", "Espresso", "Latte", "Espresso"),
+  Cafe = c("Happy Tea", "Daily Grind", "Daily Grind", "Bev's Beverages"),
+  Price = c(4, 2, 3, 2)
+)
+
+drinks
+
+discounts = tibble(
+  Row = 1:3,
+  Coupon = c("25%", "50%", "5%"),
+  Location = c("Happy Tea", "Daily Grind", "The Roast")
+)
+
+discounts
+```
+
+- Note that the value in `Cafe` from data frame `drinks` and `Location` from data frame `discounts` have overlapping values and will be the basis of joining the two data sets together.
+- Often, the name or names of the columns on which to join are the same.
+- When joining two data sets with one or more key variables, the variables in the `by` argument require quoting.
+- The most common situation is joining two data sets based on a single shared column with the same name in both data sets:
+    - Example: `df_1 %>% left_join(df_2, by = "shared-variable-name")`
+- When joining by two or more variables which use the same name in each data set, collect these names inside of `c()`.
+    - Example: `df_1 %>% left_join(df_2, by = c("var1", "var2"))`
+- The syntax for joining by columns with different names in the two data sets is to use `=` between the two names:
+    - Example: `df_1 %>% left_join(df_2, by = c("v1-from-df_1" = "v1-from-df_2", "v2-from-df_1" = "v2-from-df_2"))`
+- The various join functions do not require specifying a `by` argument; they will try to match automatically.
+- However, it is best practice to **always** include the `by` argument for code clarity and efficiency.
+- In these examples, each data set has a column named `Row` with the corresponding row number.
+- We are purposely not joining the data sets using the values in these `Row` columns
+- When a join retains both columns, the names are modified by adding `.x` or `.y` depending on if the column came from the first or second data frame.
+- Including the `Row` columns and not joining by them makes it more clear to see where the rows in the joined data set received their data from the two original data sets.
+
+- Note that we use the **tidyverse** idiom of `data set 1 %>% *_join(date set 2, ...)`
+    - An alternative would be `*_join(data set 1, data set 2, ...)`
+    
+### Inner join
+
+- `inner_join()` keeps all cases present in both data sets.
+- Here, `drinks` has values "Happy Tea", "Daily Grind" (which appears twice), and "Bev's Beverages" in the `Cafe` column.
+- `discounts` has "Happy Tea", "Daily Grind", and "The Roast" in the `Location` variable.
+- The values which appear in both are "Happy Tea" and "Daily Grind"
+- We join together the data from rows with these values from both data sets.
+
+```{r}
+drinks %>% 
+  inner_join(discounts, by = c("Cafe" = "Location"))
+```
+
+- Notice that when two different column names are used to match for joining, the name of the variable from first data frame is retained: here that is `Cafe`.
+- Notice that the columns `Row` from each data set were not used for joining.
+    - The joined data set includes `Row.x` from the first data set (`drinks`) and `Row.y` from the second data set (`discounts`).
+    - Two different rows (2 and 3) from `drinks` contained the value "Daily Grind" in the variable `Cafe` and both rows are retained.
+    - The data from row 2 in `discounts` matches on "Daily Grind" and is joined twice as the value matches twice.
+
+- When we do an `inner_join()` in the other direction, we get essentially the same resulting data set, except:
+    - The key joining column is now named `Location`
+    - `discounts` has `Row.x` values and `drinks` has `Row.y` values
+    - The variables from `discounts` appear first and the new variables from `drinks` appear after.
+    
+```{r}
+discounts %>% 
+  inner_join(drinks, by = c("Location" = "Cafe"))
+```
+
+- Row 2 from discounts, the case where `Location` is equal to "Daily Grind",
+gets repeated to match each case in `drinks` where `Cafe` is "Daily Grind".
+
+### Full join
+
+- `full_join()` keeps all cases from each data frame
+
+- The default is to use the name of the first matching column for the new column with all matching values.
+
+- When `drinks` is the first data set, its columns appear first and all of its rows remain.
+- Any rows from `discounts` which did not match rows in `drinks` on the key variables appear later.
+- Any rows which matching values in the key joining variables in only one data set get missing values `NA` in the joined data set.
+
+```{r}
+drinks %>% 
+  full_join(discounts, by = c("Cafe" = "Location"))
+```
+
+- This example sets `keep = TRUE` so that columns `Cafe` and `Location` are both retained rather than just using whichever name came from the first data set.
+- Each of these columns, potentially, has a missing value in the matching column if it did not match a case in the other data set
+
+```{r}
+drinks %>% 
+  full_join(discounts, by = c("Cafe" = "Location"), keep=TRUE)
+```
+
+
+### Left join
+
+- `left_join()` keeps all cases from the first data frame and adds new columns from the second
+- Typically, the number of rows in the joined data set matches that from the first data set: we just add new columns.
+    - However, if the second data has multiple rows which match a single row from the first, each matching row is included in the joined data set.
+- Here, the joined data has the same four rows from `drinks` because each row in `drinks` matches only a single row from `discounts`.
+    
+```{r}
+drinks %>% 
+  left_join(discounts, by = c("Cafe" = "Location"))
+```
+
+- However, more rows will be added if there are multiple matches from the second data frame to a single row of the first.
+- In this example, `discounts` has only a single row with the value "Daily Grind", but the joined data set has two as `drinks` had two different cases which matched.
+
+```{r}
+discounts %>% 
+  left_join(drinks, by = c("Location" = "Cafe"))
+```
+
+### Right join
+
+- `right_join()` keeps all rows from the second data frame and adds columns from the first.
+- This is basically the opposite of `left_join()`
+- We almost always use `left_join()` and not `right_join()`.
+    - We most often think of having a "primary" data set which we wish to augment with additional variables from a second data set.
+
+```{r}
+drinks %>% 
+ right_join(discounts, by = c("Cafe" = "Location"))
+```
+
+## Filtering joins
+
+- Filtering joins also look to match cases between the two data frame
+    - Here, we keep the same column names as the first data set but possibly remove some rows
+    - No column names from the second data set are added to the joined data frame.
+
+- There are two filtering joins: `semi_join()` and `anti_join()`.  
+
+### Semi-join
+
+- `semi_join()` returns all cases of `drinks` with a match in `discounts`
+- this is a useful way to filter cases which match one of several values for a specific variable
+- We could have used this for homework assignment 3 to retain all rows in the exoplanet data set with one of several methods.
+- the columns in the returned table are the same as in the first data set
+
+- There are three cases in `drinks` where the value in `Cafe` matches a value from `Location` in `discounts`.
+    - Notice that the number and names of columns did not change.
+
+```{r filtering-joins}
+drinks %>% 
+  semi_join(discounts, by = c("Cafe" = "Location"))
+```
+
+- There are only two cases in `discounts` where the value in `Location` matches a value in `Cafe` in `drinks`.
+
+```{r filtering-joins2}
+discounts %>% 
+  semi_join(drinks, by = c("Location" = "Cafe"))
+```
+
+### Anti joins
+
+- `anti_join()` returns all cases of drinks that do *not* have a match in discounts
+- this is another way to filter rows
+
+- Only one case in `drinks` has a value in `Cafe` with no match in `Location` from `discounts`
+
+```{r}
+drinks %>% 
+  anti_join(discounts, by = c("Cafe" = "Location"))
+```
+
+- Similarly, only one case in `discounts` contains a value in `Location` which has no match in `Cafe` from `drinks`
+
+```{r}
+discounts %>% 
+  anti_join(drinks, by = c("Location" = "Cafe"))
+```
+
+Chapter 13 in *R for Data Science* describes relational data bases and these joining functions.
+
+
+## tidyr
+
+- We move next on to tools to *reshape* data.
+- There are two primary functions:
+    - *pivot_wider()* reshapes the data by lessening the number of rows and increasing the number of columns, typically
+    - *pivot_longer()* reshapes the data by increasing the number of rows and decreasing the number of columns, typically.
+
+### Tidy data
+
+- Tidy data satisfy the following criteria
+
+    1. Each variable has its own column  
+    2. Each case has its own row
+    3. Each value has its own cell
+  
+- Sometimes, we want to *reshape* data so that it is tidy (or tidy in a different way)
+- For example, sometimes we read in data in a *wide* format where there are multiple columns with the same sort of data and the columns names contain information about another variable
+    - An example of this is the airport waiting time data where the columns `all_n_0_15`, `all_n_16_30`, and so on each had a count of the number of passengers processed in some time interval and the column names had information about the limits of the time interval.
+    - We could *reshape* this data so that:
+        - all counts are in a single column
+        - there is a new column with the time interval information
+- The **tidyr** function to make this change is named `pivot_longer()`
+- There is also a complementary `pivot_wider()` function.
+
+## Read the Airport Data
+
+- Let's consider our airport timing data from last week.
+
+```{r read-data}
+## Three-letter airport codes
+airport_codes = c("DEN", "JFK", "LAX", "MSP", "ORD", "SFO")
+
+## use purrr::read_dfr() to read each csv file
+##   and bind their rows into a single output data frame
+awt = map_dfr(airport_codes, ~{
+  filename = str_c("../../data/", .x, "-2018.csv")
+  return( read_csv(filename) )
+})
+```
+
+
+### pivot_longer()
+
+- Each case in the data set is a single airport/terminal/date/hour.
+
+- However, some of the column names contain data.
+    - Namely, the `all_n_*` columns contain information in the names about the number of passengers who wait for given time intervals.
+    
+- An alternative way to represent the data would be to have all of these counts be in a single column.
+
+- Then, a case would entail a airport/terminal/date/hour/wait-interval combination.
+
+- Let's do this for the subset of the data that are not the waiting times, flights, or booths.
+
+```{r}
+## eliminate some columns
+awt_1 = awt %>% 
+  select(-contains("_wait"), -all_total, -all_flights, -all_booths)
+
+## Show the column names
+names(awt_1)
+
+## Reshape the data by pivoting longer
+
+awt_long = awt_1 %>%
+  pivot_longer(cols = starts_with("all_"),
+               names_to = "wait_interval",
+               values_to = "n")
+
+## Show the column names of the reshaped data frame
+names(awt_long)
+```
+
+- Examine the first row of `awt_1` and the first eight rows of the reshaped long-format data set.
+
+```{r}
+## First row of awt with selected columns
+awt_1 %>% 
+  print(n = 1, width = Inf)
+
+## First 8 rows of awt_long have data from first row of awt
+awt_long %>% 
+  print(n = 8)
+```
+
+- Notice that count data in 8 columns of the first row of `awt` have been reshaped into a single column with 8 rows in `awt_long`.
+- Values in the other variables are copied
+- This pattern is continued throughout the entire data set, which makes the new data set 8 times longer.
+- The information which was in 8 columns of `awt_1` is held in 2 columns of `awt_long`:
+    - The column `wait_interval` has information from the 8 column names
+    - The column `n` has the values from the 8 original columns in `awt_1`.
+
+```{r}
+dim(awt_1)
+dim(awt_long)
+
+## arithmetic
+nrow(awt_long) / nrow(awt_1)
+```
+
+
+### pivot_wider()
+
+- The function `pivot_wider()` reshapes data by making it wider.
+- A common usage is to create a wider table after doing a summary.
+- Here, we demonstrate it's use after calculating the mean waiting time for all passengers by hour for each airport and then reshaping the data.
+
+#### Create the summary table
+
+- Average the mean waiting time for all passengers grouped by airport and hour
+- Notice we calculate a *weighted average* so we average by passenger and not by case.
+
+```{r}
+awt_sum = awt %>% 
+  group_by(airport, hour) %>% 
+  summarize(mean_wait_time = sum(all_avg_wait * all_total) / sum(all_total))
+
+awt_sum %>% 
+  head(n = 10)
+  
+```
+
+- Next, use `pivot_wider()` to reshape the data with a column for each airport and a row for each hour.
+- The arguments are:
+    - `names_from` which determines which variable will produce the new column names
+    - `values_from` which determines which variable will produce the new values
+- There will be missing data if an airport had no arrivals during a particular hour.
+
+```{r}
+## pivot_wider example
+awt_sum_wide = awt_sum %>% 
+  pivot_wider(names_from = airport, values_from = mean_wait_time)
+
+awt_sum_wide %>% 
+  print(n = Inf, width = Inf)
+```
+
+- The basic summary is most useful for further calculations
+- The wider table is often better to create a table to add to a report.
+
+### Fill-in missing values
+
+- Here, missing values are appropriate when there are no corresponding cases.
+- However, at times, it makes sense to use a value such as zero.
+- Let's do something similar, but calculate the total number of international arrivals per day for each airport at each hour.
+- Here, missing means zero.
+
+```{r}
+## First total arrivals by airport and hour
+awt_arrivals = awt %>% 
+  group_by(airport, hour) %>% 
+  summarize(flights = sum(all_flights))
+
+dim(awt_arrivals)
+
+awt_arrivals %>% 
+  print(n = 30)
+```
+
+- Now make wider
+
+```{r}
+## default, with missing values
+awt_arrivals_wide = awt_arrivals %>% 
+  pivot_wider(names_from = airport,
+              values_from = flights)
+
+awt_arrivals_wide %>% 
+  print(n = Inf, width = Inf)
+```
+
+- Do again, but replace `NA` with zero
+- Also, arrange rows by `hour`
+
+```{r}
+## default, with missing values
+awt_arrivals_wide = awt_arrivals %>% 
+  pivot_wider(names_from = airport,
+              values_from = flights,
+              values_fill = 0) %>% 
+  arrange(hour)
+
+awt_arrivals_wide %>% 
+  print(n = Inf, width = Inf)
+```
+
+## Making prettier tables for reports
+
+- The package **kableExtra** has commands to make output tables prettier in reports
+- Install this package if you have not yet done so
+- We use `kable()` to format the data frame as an HTML table
+
+```{r}
+awt_arrivals_wide %>% 
+  kable()
+```
+
+- `kable()` by itself often has the columns bunched too close to each other
+- I always use `kable_styling()` to adjust the width and centering.
+- I often add other features such as alternating striped background shading
+
+- Here is an example where the table is left-justified and does not extend to the full width of the browser window
+
+```{r}
+awt_arrivals_wide %>% 
+  kable() %>% 
+  kable_styling( position = "left", full_width = FALSE,
+                 bootstrap_options = c("striped"))
+```
+
+- Now, center the table.
+
+```{r}
+awt_arrivals_wide %>% 
+  kable() %>% 
+  kable_styling( position = "center", full_width = FALSE,
+                 bootstrap_options = c("striped"))
+```
+
+- Center again, but spread the columns as far apart as possible.
+
+```{r}
+awt_arrivals_wide %>% 
+  kable() %>% 
+  kable_styling( position = "center", full_width = TRUE,
+                 bootstrap_options = c("striped"))
+```
+
+## Wisconsin Obesity
+
+- We now shift to the case study which examines obesity rates in different zip codes in Wisconsin by age and sex cohorts.
+- A *zip code* is a geographic region used by the US Postal Service.
+- Wisconsin contains over 700 zip codes.
+- Individual zip codes do not need to be contained within municipalities (cities, towns, and villages) nor counties.
+- The zip code is part of a mailing address.
+- The US Census Bureau uses zip codes to share much public data including information on education and economic measures.
+- This allows us to examine potential relationships between different variables at an aggregated level.
+
+- The data set does not contain individual-level obesity data, but obesity information was obtained from a large number of people who had their height and weight measured during a medical visit in many different health care systems in the state.
+  
+### Data
+
+- Data sets are in two Excel workbooks, one for males and one for females
+- Data for different age groups are on different sheets
+- Download the two obesity data sets into your `COURSE/data/` directory.
+
+### Directories and Files
+
+- Directories:
+  - `COURSE/data/`
+  - `COURSE/lectures/week5-obesity/`
+  - `COURSE/scripts/`
+  
+- Files:
+  - `COURSE/data/../../data/Obesity+Prevalence+by+ZIP+Code+and+Age+Group,+Females.xlsx`
+  - `COURSE/data/../../data/Obesity+Prevalence+by+ZIP+Code+and+Age+Group,+Males.xlsx`
+  - `COURSE/scripts/viridis.R`
+  - `COURSE/lectures/unit5-obesity/week5-obesity.Rmd`
+  
+## Obesity Overview
+
+### Data Files
+
+- The Wisconsin obesity data is stored in two Excel workbooks,
+one for females and one for males.
+- The data for each sex is split across five sheets based on age ranges.
+- Each spread sheet has a row for each zip code and seven columns of data (three of which are derived) from counts in the other three.
+- There is substantial missing data as counts are not reported if they are low by several criteria.
+
+### Long format versus wide format
+
+- There are two primary *conceptual* ways to read in and combine this data.
+- To combine the data in **long format**,
+the 10 data sets are read in and stacked on top of one another,
+adding columns for sex and age range.
+- In long format,
+a single *case* has the information for a ZIP code/sex/age range combination.
+
+- Alternatively, in **wide format**,
+we would stick together the data sets horizontally,
+maintaining a single row per ZIP code.
+- In wide format, we would need to relabel the columns
+so that each column name would also include the sex/age range from which it arose.
+- This file will demonstrate reading the data into long format
+and then show how to reformat this into wide format as needed.
+
+### Read, Reformat, and Reshape Obesity Data
+
+- We will examine the details of how to read in a single sheet from a single data frame.
+- After understanding this, we will present a block of code which uses iteration from the **purrr** package to read in, reformat, and combine the data from all ten Excel spread sheets
+- You will not be responsible for writing or understanding this **purrr** code.
+
+### Reading Data for One Age and Sex
+
+- To read data from one sheet into a single data frame
+we could do something like the following.
+  - Here, we read in data for male children, aged 5-17, which is located on the third sheet of one of the Excel workbooks
+
+```{r read-one}
+male_05_17 =  read_excel(
+  "../../data/Obesity+Prevalence+by+ZIP+Code+and+Age+Group,+Males.xlsx",
+  sheet=3, skip=5, na=".")
+
+str(male_05_17)
+```
+
+- The first five lines of this file contain title information,
+line six has the column names,
+and data comes below this.
+- The data is actually in columns B through H,
+but `read_excel()` is smart enough by default to ignore empty column A.
+
+- Take a peek at this data.
+
+```{r peek}
+head(male_05_17)
+```
+
+- What is clear is that the given column names are not convenient
+and there is considerable missing data.
+- Here is some code that selects the columns with raw data
+(we can always re-derive the others if desired,
+and this is safer than trusting it is accurate)
+and then renames the columns.
+- This code uses `select()` and `rename()` from **dplyr**
+along with the select helper functions `starts_with()` and `ends_with()`
+to avoid typing the long variable names provided.
+- Furthermore,
+we use `mutate()` to add columns `sex` and `age`
+which contain the corresponding values for this part of the data.
+- This last part is necessary so that we capture important variables which were part of the name of the file and the sheet
+
+```{r one-reformat}
+male_05_17 = male_05_17 %>%
+  select(starts_with("ZIP"),
+         starts_with("Number"),
+         starts_with("Population")) %>%
+  rename(zip = starts_with("ZIP"),
+         obese = ends_with("Obesity"),
+         n = ends_with("BMI"),
+         pop = starts_with("Population")) %>%
+  mutate(sex = "male") %>%
+  mutate(age = "5-17")
+
+head(male_05_17)
+```
+
+#### Combining
+
+- To finish creating the data set in long format,
+we could copy/paste/edit the previous code
+for all 10 sheets and then use `bind_rows()` to combine into a single data frame.
+- A better way, however,
+is to **write a function** for the repeated elements of code.
+- This results in code that is:
+    - more concise,
+    - easier to read,
+    - easier to edit,
+    - and more clear.
+- In base R, we could accomplish this using a *for loop*.
+- Here, we take a tidyverse approach and use `map_dfr()` from **purrr**
+
+### Reading in all of the data
+
+#### Create a data frame for file input, one row per data set
+
+- The data is in two Excel workbooks with the names:
+    - "Obesity+Prevalence+by+ZIP+Code+and+Age+Group,+Males.xlsx"
+    - "Obesity+Prevalence+by+ZIP+Code+and+Age+Group,+Females.xlsx"
+- on sheets 3--7 with one sheet per age group in the order:
+    - children, age 5--17;
+    - 18--34;
+    - 35--54;
+    - 55-74; and
+    - 75 and older
+- Our strategy to read in all of the data will be create a small data frame with one row per sheet to read in.
+    - A variable `sex` with values "Females" and "Males" will specify which Excel workbook to use
+    - A variable `sheet` with values 3--7 will indicate which sheet to read
+    - A variable `age` will contain a string with the corresponding age range.
+    
+- We begin by using the **tidyr** function `expand_grid()` to create a data frame with all possible combinations of:
+    - the vector `sex = c("Females", "Males")`
+    - the vector `sheet = 3:7`
+- We then add a column with the age value associated with of these sheets using `left_join()` with a small data set that links `sheet` number and `age`
+
+```{r obesity-info}
+temp = tibble(
+  sheet = 3:7,
+  age = c("05-17","18-34","35-54","55-74","75+"))
+
+obesity_info = expand_grid(sex = c("Females", "Males"),
+                           sheet = 3:7) %>% 
+  left_join(temp, by = "sheet")
+
+obesity_info
+```
+
+#### Reading in the data with **purrr**
+
+- The function `pmap_dfr()` from `purrr` will iterate over the rows of `obesity_info`.
+  - The `pmap` prefix means each column is a separate input object
+  - `sex` is the first argument which we refer to using `..1`
+  - `sheet` is the second argument which we refer to using `..2`
+  - `age` is the third argument which we refer to using `..3`
+  - `_dfr` means return the object as a single data frame after stacking rows.
+- `str_glue()` is a string function in **stringr** which is an alias to the `glue()` function in the package **glue**
+  - Here, the function substitutes the value of `sex` into the file name
+- `read_excel()` reads the specified file and sheet number
+- `rename()` renames the columns to nice names
+- `mutate()` adds columns showing the sex and age values for the rows in each file/sheet combination
+   - this allows us to tell which rows came from which sex file and which age sheet
+- `recode()` to change the strings "Females" and "Males" in the file names to the values "female" and "male" in the data set
+- `relocate()` to change the column order
+
+
+```{r obesity-read-all}
+obesity = obesity_info %>% 
+  pmap_dfr(~{
+    str_glue("../../data/Obesity+Prevalence+by+ZIP+Code+and+Age+Group,+{..1}.xlsx") %>% 
+      read_excel(sheet = ..2, skip = 5, na = ".") %>% 
+      select(starts_with(c("ZIP","Number","Population"))) %>% 
+      rename(zip = starts_with("ZIP"),
+             obese = ends_with("Obesity"),
+             n = ends_with("BMI"),
+             pop = starts_with("Population")) %>% 
+      mutate(sex = ..1, age = ..3)
+  }) %>% 
+  as_tibble() %>% 
+  mutate(sex = recode(sex,
+                      "Females" = "female",
+                      "Males" = "male")) %>% 
+  relocate(zip, sex, age)
+
+obesity %>% 
+  print(n = 10, width = Inf)
+```
+
+
+### Save the Data
+
+- To avoid working with these Excel files in the future, we can write this `obesity` object in a simpler comma-separated-variable file.
+
+```{r read-obesity, eval = FALSE}
+write_csv(obesity, "../../data/obesity.csv")
+```
+
+- Note that the zip code data will be read as numeric, but we will not do arithmetic on the zip code values.
+- When reading in this data, we may opt to change `zip` into a character variable.
+
+### Advantages of the long format
+
+- Note that each row of the data frame has data from one zip code/sex/age
+  - Data in a single zip code is spread over 10 rows
+- The long format data has advantages for many purposes.
+  - We can easily add new columns,
+such as prevalence of obesity
+among sampled patients for each zip/sex/age combination,
+or the total estimated number of such people in the population.
+  - We can filter to select certain characteristics (only males, only one age group).
+  - We can also aggregate (sum over zip codes, sexes, or whatever we want).
+
+
+### Understanding the Data
+
+- There is one row (case) per zip code, sex, and age cohort.
+- `zip`: the zip code
+    - there are 774 zip codes from Wisconsin represented in the data set
+    - we will use this data as a key to other data sets
+- `sex`: either *female* or *male*   
+    - we will be interested to see if there are obesity differences between the sexes
+- `age`: is an age range with possible values *5-17*, *18-34*, *35-54*, *55-74*, and *75+*
+    - we will be interested to examine differences by age
+    - note that we do not have obesity data on individuals age four years or younger
+- `obese`: the number of obese individuals in the *sample*
+- `n`: the sample size (people whose sex, age, BMI, and obesity status were measured)
+- `pop`: the population in that zip code of the total number of people of a given age and sex
+- There is substantial missing data in the data set.
+
+### Estimation
+
+- We are interested in knowing things about all people in the state of Wisconsin
+- We would like to know the obesity status for everyone in the population.
+- However, we only have this information for a subset of people
+- If we assume that the obesity proportion of unsampled people is the same as sampled people within each zip code, sex, and age range, we can *estimate* the numbers of obese and non-obese people in each.
+- With these estimates of the population, we can aggregrate in various ways and make estimates at the state level.
+- Add columns for the estimated number of obese and non-obese people in each row.
+
+```{r}
+obesity = obesity %>% 
+  mutate(obese_pop = pop * (obese/n),
+         non_obese_pop = pop * (1 - obese/n))
+
+head(obesity)
+```
+
+### Caution
+
+- When working with this data set and combining information across different zip codes, sexes, and age groups we always will **combine population estimated counts and not sample counts**
+- For example, if zip code A has:
+  - 1000 female children, aged 5-17
+  - a sample size of 100
+  - 20 obese girls in the sample
+- Zip code B has:
+  - 10,000 female children, aged 5-17
+  - a sample size of 100
+  - 10 obese girls in the sample
+- If we want to estimate the proportion of obese girls in these two zip codes combined, **the wrong answer** is
+$$
+\frac{20 + 10}{100 + 100} = \frac{30}{200} = 0.15
+$$
+- because this calculation ignores the different population sizes, sampling rates, and obesity rates in the two zip codes
+  - It is true that 15% of the girls sampled were obese, but each sampled girl does not represent the same proportion of the entire population.
+  
+- The correct calculation is
+$$
+\frac{1000 \times (20/100) + 10000 \times (10/100)}{1000 + 10000} =
+\frac{1200}{11000} \doteq 0.109
+$$
+- The estimated overall obesity rate in the population is about 10.9%, closer to the observed 10% in the larger zip code with 10,000 girls than the observed 20% in the smaller zip code with only 1000 girls.
+- At this stage of the course,
+we are not attempting to quantify the uncertainty which results from projecting observed proportions in samples to the larger populations which they represent.
+  - We will begin to examine such statistical inference ideas after the midterm.
+  
+### Questions
+
+#### 1
+
+> According to US Census Bureau estimates, the population of Wisconsin was about 5.76 million people in 2015.
+What is the total population of people represented in this data set?
+Why do these values disagree?
+
+
+#### Live Coding
+
+```{r}
+
+```
+
+
+
+#### Prepared Solution
+
+```{r}
+prob1 = obesity %>% 
+  select(pop) %>% 
+  summarize(pop = sum(pop))
+
+## Sum of populations in data set
+prob1
+
+## Wisconsin population
+wi_pop = 5.76 * 10^6
+wi_pop
+
+## Difference
+wi_pop - pull(prob1, pop)
+```
+
+
+
+
+
+
+
+#### Answer
+
+- The data set does not include children aged 4 years and younger.
+
+
+#### 2
+
+> Calculate the total population within each zip code and store these 774 values in a new data frame.
+Make a box plot of these values.
+Calculate the minimum, lower quartile (0.25 quantile),
+the median, the upper quartile (0.75 quantile),
+and the maximum of these values.
+
+#### Live Coding
+
+```{r}
+
+```
+
+
+
+#### Prepared Solution
+
+```{r}
+## count total population by zip code
+prob2 = obesity %>% 
+  select(zip, pop) %>% 
+  group_by(zip) %>% 
+  summarize(pop = sum(pop))
+
+## box plot
+ggplot(prob2, aes(x=0, y=pop)) +
+  geom_boxplot() +
+  xlab("") +
+  ylab("Population") +
+  scale_x_continuous(breaks = NULL, labels = NULL) +
+  scale_y_continuous(label = comma)
+
+## quantiles
+### short version using quantile()
+prob2 %>% 
+  pull(pop) %>% 
+  quantile()
+
+## explicit with summarize() in the tidyverse
+prob2 %>% 
+  summarize(min = min(pop),
+            q25 = quantile(pop, 0.25),
+            median = median(pop),
+            q75 = quantile(pop, 0.75),
+            max = max(pop))
+```
+
+- The data has a very strong right skew.
+- There are a few highly populated zip codes.
+- A typical zip code has just a few thousand people.
+
+#### 3
+
+> Estimate the overall proportion of obesity in Wisconsin.
+Calculate the total number of obese people in Wisconsin and divide by the total number of people in zip code / sex / age cohorts where there is an estimate of the number of obese people. (You will need to drop rows prior to making the calculation.)
+Express the value as a percentage rounded to one decimal place.
+
+#### Live Coding
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+#### Prepared Solution
+
+```{r}
+prob3 = obesity %>% 
+  drop_na() %>% 
+  summarize(obese = sum(obese_pop),
+            pop = sum(pop),
+            obese_pct = 100*obese/pop)
+
+prob3 %>% 
+  pull(obese_pct)
+```
+
+
+#### 4
+
+> Repeat the previous problem, but do so separately for females and males.
+
+#### Live Coding
+
+```{r}
+
+```
+
+
+
+
+
+
+
+#### Prepared Solution
+
+```{r}
+prob4 = obesity %>% 
+  drop_na() %>% 
+  group_by(sex) %>% 
+  summarize(obese = sum(obese_pop),
+            pop = sum(pop),
+            obese_pct = 100*obese/pop)
+
+prob4
+```
+
+### (Re-) Read the Data
+
+- If needed, re-read the obesity data from the saved .csv file and add two variables
+- We read the data and set the column types of each variable
+- We also add columns for the estimated numbers of obese and non-obese individuals in each zip code/sex/age cohort.
+
+```{r}
+obesity = read_csv("../../data/obesity.csv",
+                   col_types = cols(
+                     zip = col_character(),
+                     sex = col_character(),
+                     age = col_character(),
+                     obese = col_double(),
+                     n = col_double(),
+                     pop = col_double())) %>% 
+  mutate(obese_pop = pop * (obese/n),
+         non_obese_pop = pop * (1 - obese/n))
+
+head(obesity)
+```
+
+### Continue Problems
+
+#### 5
+
+> The definition of obesity is different for children than for those aged 18 years and older. Find the obesity rate of children overall, and then separately for female and male children.
+
+#### Live Coding
+
+```{r}
+
+```
+
+
+
+
+#### Prepared Solution
+
+```{r}
+prob5a = obesity %>% 
+  drop_na() %>% 
+  filter(age == "05-17") %>% 
+  summarize(obese = sum(obese_pop),
+            pop = sum(pop),
+            obese_pct = 100*obese/pop)
+
+prob5a
+
+prob5b = obesity %>% 
+  drop_na() %>% 
+  filter(age == "05-17") %>% 
+  group_by(sex) %>% 
+  summarize(obese = sum(obese_pop),
+            pop = sum(pop),
+            obese_pct = 100*obese/pop)
+
+prob5b
+```
+
+#### 6
+
+> Find the estimated obesity rate for all Wisconsin adults, and then female and male adults separately.
+
+
+### Live Coding
+
+```{r}
+
+```
+
+
+#### Prepared Solution
+
+> All adults
+
+```{r}
+prob6a = obesity %>% 
+  drop_na() %>% 
+  filter(age != "05-17") %>% 
+  summarize(obese = sum(obese_pop),
+            pop = sum(pop),
+            obese_pct = 100*obese/pop)
+
+prob6a
+```
+
+> Separately by sex
+
+```{r}
+prob6b = obesity %>% 
+  drop_na() %>% 
+  filter(age != "05-17") %>% 
+  group_by(sex) %>% 
+  summarize(obese = sum(obese_pop),
+            pop = sum(pop),
+            obese_pct = 100*obese/pop)
+
+prob6b
+```
+
+#### 7
+
+> Create a summary data frame with the estimated obesity rate for each sex and age cohort (so, ten separate estimates in total).
+Plot these estimates with a bar graph with age on the x axis and color to indicate sex. (Use `position = "dodge"` or `position = position_dodge()` to avoid stacking. The second allows you to specify additional arguments for more control over the plot appearance.)
+
+
+### Live Coding
+
+```{r}
+
+```
+
+> Comment on patterns.
+
+#### (a)
+
+> Are differences between male and female obesity rates similar for all age groups? If not, can you give a possible reason to explain the difference?
+
+#### (b)
+
+> Why are the obesity rates in children so different than in adults?
+Provide a reason.
+
+#### (c)
+
+> Describe how obesity rates change among men and women as the population ages. What possible factor best explains the difference between obseity rates among those aged 55-74 and those 75 and older, do you think?
+
+
+
+
+
+
+
+
+#### Prepared Solution
+
+```{r}
+prob7 = obesity %>% 
+  drop_na() %>% 
+  group_by(age, sex) %>% 
+  summarize(obese = sum(obese_pop),
+            pop = sum(pop),
+            obese_pct = 100*obese/pop)
+
+prob7
+
+ggplot(prob7, aes(x=age, y = obese_pct, fill=sex)) +
+  geom_col(position = position_dodge()) +
+  xlab("Age Group") +
+  ylab("% Obesity") +
+  ggtitle("Obesity Rates in Wisconsin by Age and Sex")
+```
+
+> Comment on patterns.
+
+#### (a)
+
+> Are differences between male and female obesity rates similar for all age groups? If not, can you give a possible reason to explain the difference?
+
+- In most age groups, the obesity of males is slightly higher than that of females.
+- The one exception is 18-34 years of age.
+- The most plausible explanation is that some women will be pregnant during these ages and will be labeled as obese while pregnant, even if they are not typically.
+
+#### (b)
+
+> Why are the obesity rates in children so different than in adults?
+Provide a reason.
+
+- The definition of obesity is very different for children (be among the top 5% of BMI for age and sex) than it is for adults (have a BMI of 30 or higher).
+
+#### (c)
+
+> Describe how obesity rates change among men and women as the population ages. What possible factor best explains the difference between obseity rates among those aged 55-74 and those 75 and older, do you think?
+
+- The most plausible explanation is differential survival rate. A larger percentage of obese people die before reaching age 75 than do non-obese people.
+
+
+### Analyze Obesity and Rural/Urban Regions
+
+- Next, we examine a possible association between obesity rates and the rural/urban characterization of zip codes
+- If we had *individual-level data*, we could examine counts of individuals by their obesity status and rural/urban status
+- However, we have *aggregated data* with:
+    - obesity data by zip code, sex, and age range
+    - urban/rural data by zip code (as we will see)
+- In this aggregated data, the zip code is the sampling unit.
+    - An association between obesity prevalence and the rural/urban nature of zip codes would suggest an association between obesity and rural/urban home locations among individuals, but strong and perhaps unrealistic assumptions would be necessary to estimate the difference in obesity prevalence at an individual level.
+
+### Read the Data
+
+- Read the Wisconsin rural/urban data from the file *wi-urban-rural.csv*.
+
+```{r}
+ru = read_csv("../../data/wi_urban_rural.csv")
+
+head(ru)
+```
+
+### Understanding the Rural/Urban Data
+
+- The US Census Bureau areas as rural or urban based on population density.
+- Rural areas are open country or settlements with fewer than 2,500 residents.
+- Urban areas are more densely settled areas and need not follow municipal boundaries.
+- A single zip code might contain both rural and urban areas.
+- The Wisconsin rural/urban data set we read in has nine columns, but we are only interested in three of these.
+    - `Id2` which is the zip code
+    - `Urban:` which is the population that lives in urban areas
+    - `Rural` which is the population that lives in rural areas
+- The variable `Total:` is the sum of these two, but we can sum these ourselves if needed.
+- The urban totals are subdivided, but we only need the total.
+
+#### Transform the Rural/Urban Data
+
+- We transform the data so that there are only these three columns and we rename them.
+- We also change zip to character valued so it will match the same column in the obesity data.
+
+```{r}
+ru = ru %>% 
+  select(Id2, `Urban:`, Rural) %>% 
+  rename(zip = Id2,
+         urban = `Urban:`,
+         rural = Rural) %>% 
+  mutate(zip = as.character(zip))
+
+head(ru)
+```
+
+### Merging the Data
+
+- Next, we want to merge the obesity and rural/urban data sets.
+- However, the obesity data set has the population for each zip code broken down by sex and age group.
+- We will start by reducing the obesity data to one line per zip code by summing the number of obese and non-obese people in each across all ages
+- We will need to eliminate rows with missing data.
+- Note that the total number of people from the obesity data will be less than from the rural/urban data because:
+    - The obesity data does not include children age 4 years and younger
+    - The rural/urban data was collected in 2017, not 2015
+    - Some people are lost due to censoring data from zip codes where some age/sex cohorts had small counts.
+    
+```{r}
+## Summarize the Obesity Data by Zip Code
+obesity2 = obesity %>% 
+  drop_na() %>% 
+  group_by(zip) %>% 
+  summarize(pop = sum(pop),
+            obese_pop = sum(obese_pop),
+            non_obese_pop = sum(non_obese_pop))
+
+head(obesity2)
+```
+
+- Notice that the `obesity2` data set only has data from 581 of the 774 Wisconsin zip codes.
+- Next, we want to join the rural/urban data with the obesity data by zip code.
+- We will keep the obesity data as primary, and add the `rural` and `urban` columns for the remaining zip codes.
+- Note the use of `left_join()`.
+
+```{r}
+obesity2 = obesity2 %>% 
+  left_join(ru, by = "zip")
+
+head(obesity2)
+```
+
+### Obesity Rate versus Urbanization
+
+- Next, let's calculate the proportion of obese people and the proportion of people living in urban areas for each zip code and add columns with this data.
+
+```{r}
+obesity2 = obesity2 %>% 
+  mutate(p_obese = obese_pop / (obese_pop + non_obese_pop),
+         p_non_obese = 1 - p_obese,
+         p_urban = urban / (urban + rural),
+         p_rural = 1 - p_urban)
+
+head(obesity2)
+```
+
+- Graph these two quantitative variables with a scatter plot.
+    - Put `p_urban` on the x axis as an explanatory variable
+    - Put `p_rural` on the y axis as a response variable
+    - Add a trend line
+    
+```{r}
+ggplot(obesity2, aes(x=p_urban, y=p_obese)) +
+  geom_point() +
+  geom_smooth(se = FALSE, method = "lm")
+```
+    
+#### Observations
+
+- Many zipcodes are either 100% urban or 100% rural.
+- There is a tendency for a greater obesity prevalence in more rural zip codes
+- There is considerable variation from zip code to zip code
+- The plot may be improved in many ways:
+    - axis labels and titles
+    - scales
+    - include population data?
+    
+```{r}
+ggplot(obesity2, aes(x=p_urban, y=p_obese, size=pop)) +
+  geom_point(alpha = 0.2) +
+  geom_smooth(se = FALSE, method = "lm", show.legend = FALSE) +
+  ## represent the x and y axes with percentages
+  ## accuracy = 1 means round to a whole number
+  ##   (use accuracy = 0.1 or 0.2, for example, to round to one digit)
+  scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  ## Change the legend title from "pop" to "Population"
+  scale_size_continuous(name = "Population") +
+  xlab("% Urban") +
+  ylab("% Obese") +
+  ggtitle("Wisconsin Obesity by Zip Code") +
+  ## change the background to white
+  theme_bw()
+```
+ 
+Observations:
+
+- The obesity rate in the most rural zip codes is about 46% as compared to the most urban zip codes where it is about 36%.
+- Zip codes in mostly urban areas tend to have much higher populations than those in mostly rural zip codes.
+  - We could explore this population by rural/urban percentage more effectively using a different plot with population as either the x or y variable.
+  
+```{r}
+ggplot(obesity2, aes(x = p_urban, y = pop)) +
+  geom_point() +
+  geom_smooth(se = FALSE) +
+  scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
+  scale_y_continuous(labels = scales::comma) +
+  xlab("% Urban") +
+  ylab("Population") +
+  ggtitle("Urban Wisconsin Zipcodes have More Population")
+  
+```
+  
+  
+
+
+
+
+
+
+
+
+
+  

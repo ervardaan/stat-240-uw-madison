@@ -1,0 +1,908 @@
+---
+title: "Wordle, Strings, and Regular Expressions"
+author: "Bret Larget"
+output: html_document
+---
+
+This R Markdown document includes contributions from Professor Jessi Kehe. 
+
+### Setup details
+
+- You will need the **tidyverse** packages including **stringr** within.
+
+- Be sure to read *R4DS* Chapter 14 for information on **stringr** 
+
+  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      error = TRUE, fig.height = 4)
+
+library(tidyverse)
+library(kableExtra)
+```
+
+## Wordle
+
+- Wordle^[https://www.powerlanguage.co.uk/wordle/] is a word-guessing game created by software engineer Josh Wardle, and released to the public during October 2021.
+- Subsequently, it exploded in popularity, first by word of mouth, then after mention of it in the *New York Times* in early December tht year.
+- Widespread play accelerated after the addition of a feature which allows players to share their results with others using a colored grid of squares.
+- There are now millions of daily players around the world. Maybe you are one of them!
+- The *New York Times* purchased the game in January, 2022 for more than $1,000,000 and took over the distribution of the game.
+- Many variants have been created.
+
+- The rules are straightforward.
+- All players try to guess the same five-letter word each day.
+- All guesses need to be valid English words.
+- Each word is evaluated by a colored response sequence where green means the letter is in the correct place,
+yellow means the letter is in the solution but is not in the correct location in the guess,
+and gray means that the letter is not in the solution (or it has already been accounted for if the same letter is colored elsewhere).
+- Players get up to six guesses to try to find the solution.
+- There are a total of 2,315 possible solutions in the original Wordle lexicon and an additional 10,657 valid guesses which are words, but are either plurals of four-letter words or deemed to be too obscure by Wardle to use as solutions.
+- When the *New York Times* took over the management of the game,
+they made some small modifications to the list of possible solutions.
+
+## Strings and Regular Expressions
+
+- We can play the game using only knowledge of the English language.
+- We can also use tools for strings and regular expressions (special strings which match patterns).
+
+### Example
+
+- Here is an example of how using string functions and regular expressions can be used to narrow down the list of possible solutions.
+
+- On one day, the first guess `irate` returned the color sequence `G__YY` where `G` represents green, `Y` represents yellow, and `_` stands for gray.
+- The information from this guess and response may be classified in the following manner:
+  - there are no letters `r` nor `a` in the solution
+  - there is at least one `i`, `t`, and `e`
+  - the first letter is an `i`
+  - the fourth letter is not a `t`
+  - the fifth letter is not an `e`
+
+- We can take the dictionary of possible solutions and filter to retain only words which match this summary of the information.
+- The strategy here is to:
+  - remove all words that include letters we have eliminated;
+  - remove all words missing letters which must be included some number of   times;
+  - eliminate words which do not have known letters in certain positions or do have letters in a position where those letter cannot be
+
+- This block of code takes the list of solutions and applies these filters from the example.
+
+```{r}
+wrdl_data = read_csv("../../data/wordle_data.csv")
+wrdl_solutions = wrdl_data %>% 
+  filter(solution == TRUE) %>% 
+  select(word)
+
+w = wrdl_solutions %>% 
+  ## remove words with eliminated letters
+  filter(!str_detect(word, "[ra]")) %>% 
+  
+  ## retain words with at least one i, t, and e
+  filter(str_count(word, 'i') > 0) %>% 
+  filter(str_count(word, 't') > 0) %>% 
+  filter(str_count(word, 'e') > 0) %>% 
+  
+  ## filter based on the pattern
+  filter(str_detect(word, "i..[^t][^e]"))
+
+w
+```
+
+- Of the 2315 possible solutions, only three are consistent with the observed pattern `G__YY` after the first guess "irate".
+- After this motivation, we spend more time examining foundations of strings and regular expressions.
+
+## Strings
+
+- A *string* is a sequence of characters.
+- In R, a string is surrounded by a pair of single quotes or double quotes.
+
+```{r}
+'a string'
+"another string"
+```
+
+### Quotes in strings
+
+- A string which contains quotes may be surrounded by the other type.
+
+```{r}
+"A 'string' that contains single quotes"
+'A "string" that contains double quotes'
+```
+
+- Alternatively, use a backslash (`\`) before a quote character, or any other special character.
+
+```{r}
+"A \"string\" using backslashes to \"escape\" the double quote characters."
+```
+
+### Common string functions
+
+- See the Cheat Sheet for a more extensive list.
+- All of the string functions begin `str_`.
+
+- We demonstrate a number of common string functions using a small subset of the Wordle data set.
+
+- Many string functions involve a string and a pattern which is a *regular expression*.
+- A regular expression is a string where some characters have special meanings.
+    - Later this week we will describe regular expressions in more details.
+    - When giving examples of various string functions, we will introduce several examples of regular expressions.
+
+```{r}
+set.seed(20230229)
+example = slice_sample(wrdl_solutions, n = 10) %>% 
+  arrange(word)
+
+example
+```
+
+
+### Detect matches
+
+- A pattern is a string which holds a *regular expression* that can match strings with particular patterns
+- The simplest pattern is an exact match with the string
+- Later, we describe many ways to build regular expressions
+
+#### Example functions
+
+- `str_detect(string, pattern)` --- detect a pattern in a string
+- `str_count(string, pattern)` --- count the number of times a string contains a pattern
+
+> Which example words contain the letter "a"?
+
+```{r}
+example %>% 
+  filter(str_detect(word, "a"))
+```
+
+> Which example words begin with the letter "a"?
+> The symbol `^` at the start of a regular expression represents the beginning of a string.
+
+```{r}
+example %>% 
+  filter(str_detect(word, "^a"))
+```
+
+> Which example words end with a vowel?
+> The symbol `$` at the end of a regular expression represents the end of a string.
+> The pattern `[aeiouy]` matches any one of the letters between the brackets.
+
+```{r}
+example %>% 
+  filter(str_detect(word, "[aeiouy]$"))
+```
+
+> Count the number of vowels (here, one of a, e, i, o, u) in each word.
+> (It is more complicated to say when y is a consonent and when it is a vowel.)
+
+```{r}
+example %>% 
+  mutate(n = str_count(word, "[aeiou]"))
+```
+
+### Subsets
+
+- A subset is part of the string
+- When selecting by position, positive numbers count from the beginning, negative count from th end.
+
+#### Example functions
+
+- `str_sub(string, start, end)` --- extract a subset by position
+- `str_extract(string, pattern)` --- extract first match of pattern, `NA` if no match
+
+> Create variables with several substrings
+
+```{r}
+example %>% 
+  mutate(first = str_sub(word, 1, 1),
+         first_three = str_sub(word, 1, 3),
+         last = str_sub(word, -1, -1),
+         last_two = str_sub(word, -2, -1),
+         not_first = str_sub(word, 2, -1),
+         first_vowel = str_extract(word, "[aeiou]"))
+```
+
+> Extract several patterns: `.` matches any character
+
+```{r}
+example %>% 
+  mutate(first = str_extract(word, "^."),
+         first_three = str_extract(word, "^..."),
+         also_first_three = str_extract(word, "^.{3}"),
+         last = str_extract(word, ".$"),
+         last_two = str_extract(word, "..$"))
+```
+
+
+### Length
+
+- The *length* of a string is the number of characters in it.
+
+#### Example functions
+
+- `str_length(string)` --- length of the string
+- `str_pad(string, width, side, pad = " ")` --- pad strings to a constant width
+
+> Count lengths
+
+```{r}
+example %>% 
+  mutate(n = str_length(word))
+```
+
+> Add spaces to pad to a length of seven letters
+
+```{r}
+example %>% 
+  mutate(add_to_right = str_pad(word, 7, side = "right"),
+         add_to_left = str_pad(word, 7, side = "left"),
+         add_to_both = str_pad(word, 7, side = "both"))
+```
+
+
+### Mutate
+
+- Modify strings
+
+#### Example functions
+
+- `str_sub(string, start, end) = replacement_string` --- replace a subset by position
+- `str_replace(string, pattern, replacement)` --- replace first match with replacement
+- `str_to_lower(string)` --- change all letters to lower case
+- `str_to_upper(string)` --- change all letters to upper case
+
+> Replace letters in positions 2--4 with a single "X"
+
+```{r}
+## create a string which will be modified
+x = example$word
+str_sub(x, 2, 4) = "X"; x
+```
+
+> Replace the first vowel with an X; make all caps
+
+```{r}
+example %>% 
+  mutate(x = str_replace(word, "[aeiou]", "X"),
+         all_caps = str_to_upper(word))
+```
+
+
+### Join and split
+
+- Combine strings or divide them
+
+#### Example functions
+
+- `str_c(..., sep = "")` --- combine multiple strings into one
+- `str_split(string, pattern)`
+
+> Create a new word with the first and last letters repeated
+
+```{r}
+example %>% 
+  mutate(new_word = str_c(str_sub(word,1,1), word, str_sub(word,-1,-1)))
+```
+
+> Split each word by its vowels and return a list of character vectors
+
+```{r}
+## returns a list for each word
+example %>% 
+  pull(word) %>% 
+  str_split("[aeiou]")
+```
+
+## Regular Expressions
+
+- A *regular expression* is a sequence of characters that defines a pattern which may match a string or part of a string
+- Most characters match only their matching character:
+    - `a` matches only `a`, `A` matches only `A`
+    - `,` and `;` match the corresponding punctuation marks
+    - Usually, a digit such as `1` or `2` matches only the corresponding digit
+        - An exception is when preceded by a backslash, `\1`
+- There are many special characters that take on special meaning in a regular expression
+- When you want the literal special character, you need to precede it with a backslash, `\`.
+- This includes the symbol `\` itself.
+
+### Representing Regular Expressions as Strings in R
+
+- The regular expression `^.{3}` matches the first three characters of a string.
+- Inside of R, we store the regular expression as a string, `"^.{3}"`.
+- For most regular expressions, this is straightforward.
+- However, the character `\`:
+    - means something special in a string in R; and
+    - means something special in a regular expression
+- Later, we will show examples of how we need to treat regular expressions which contain `\` carefully when represented in a string. 
+
+
+### Examples
+
+#### Alternates
+
+- `|` --- *or*, match exactly one of the possibilities: can separate more than two choices
+- `[]` --- *one of*, match one of the characters between the brackets
+- `[^]`--- *anything but*, match anything *not* between `[^` and `]`
+- ranges --- examples: `[a-d]`, `[0-5]`, `[a-zA-Z]`
+
+> Which example words contain an 'a' or an 'i' or the letter combo 'rs'?
+
+```{r}
+example %>% 
+  filter(str_detect(word, "a|i|rs"))
+```
+
+> Which example words contain at least one letter of "bucky"?
+
+```{r}
+example %>% 
+  filter(str_detect(word, "[bucky]"))
+```
+
+> Find the first character in the example words which is not a letter from the word "bucky"?
+> Note that `^` here means NOT instead of the start of the string.
+
+```{r}
+example %>% 
+  mutate(not_bucky = str_extract(word, "[^bucky]"))
+```
+
+> Find the first letter from `c` through `g` in each word. Note, the value is NA if there is no match to the pattern
+
+```{r}
+example %>% 
+  mutate(first_c_through_g = str_extract(word, "[c-g]"))
+```
+
+
+
+#### Anchors
+
+- `^` --- the start of the string
+- `$` --- the end of the string
+- We have seen these many times already.
+
+#### Quantifiers
+
+- How often does the previous character/group need to appear?
+
+- `?` --- 0 or 1
+- `*` --- 0 or more
+- `+` --- 1 or more
+- `{n}` --- exactly `n` times
+- `{n,}` --- `n` or more
+- `{m,n}` --- from `m` to `n` times
+
+> Extract a `c` followed by 0 or 1 letters `h`
+
+```{r}
+example %>% 
+  mutate(x = str_extract(word, "ch?"))
+```
+
+> Extract the letter "l" followed by 0 or more vowels
+
+```{r}
+example %>% 
+  mutate(x = str_extract(word, "l[aeiou]*"))
+```
+
+> Extract one or more consonents followed by the letter 'o'
+
+```{r}
+example %>% 
+  mutate(x = str_extract(word, "[^aeiou]+o"))
+## Notice in the word "torso", the first instance is found
+```
+
+> Extract various parts of the words
+
+```{r}
+example %>% 
+  mutate(first_three = str_extract(word, ".{3}"),
+         one_or_two_vowels = str_extract(word, "[aeiou]{1,2}"),
+         two_or_more_consonents_at_end = str_extract(word,"[^aeiou]{2,}$"))
+```
+
+
+
+### Special collections
+
+- `[:space:]` --- space, tab, newline
+- `[:blank:]` --- space and tab
+- `[:punct:]` --- a collection of punctuation characters
+- `[:symbol:]` --- a collection of symbols
+- `[:digit:]` --- a digit
+- `[:lower:]` --- same as `[a-z]`, a lower-case letter
+- `[:upper:]` --- same as `[A-Z]`, an upper-case letter
+- `[:alpha:]` --- same as `[a-zA-Z]`, `[:lower:]|[:upper]`
+- `[:alnum:]` --- letter or number, `[:alpha:]|[:digit:]`
+- `[:graph:]` --- punctuation, symbols, digits, letters
+    - same as `[:punct:]|[:symbol:]|[:alnum:]`
+- `.` --- matches any single character except for a newline    
+    
+#### Others
+
+- See the cheat sheet for others:
+    - Peek ahead and behind
+    - Groups
+    
+## Regular expression representations in R
+
+- Each regular expression is represented as a string in R
+- Most regular expressions are simply the string of the regular with no changes
+    - the regular expression `abc+` is represented as the string `"abc+"`
+- However, regular expressions that include a backslash, `\`, need to duplicate the `\` in the string representation as `\` means something special inside a string.
+    - `\n` is the new line character in a string
+    - `\t` is the tab character in a string
+    - and there are more examples
+
+### Special Characters
+
+- There are a few characters with special meaning in a regular expression.
+- Examples we have seen include `^`, `$`, `\`, `+`, `[`, `]`, `{`, `}`, `-`, `.`, and `*`.
+- If we want to match a literal one of these characters in a regular expression, we precede the character with the backslash `\`.
+    - This includes the backslash characters itself.
+- But as `\` carries special meaning in a string in R, each `\` needs to be preceded by `\` in the string representation of the regular expression.
+    - A consequence is that a literal `\` is represented by the string `"\\\\"` in the string representation of a regular expression with a literal `\`.
+    
+#### Examples
+
+- The regular expression `a+`, which matches one or more consecutive `a`s, has the string representation `"a+"`
+- The regular expression `a\+`, which matches an `a` followed by a literal `+`, has the string representation `"a\\+"`
+
+- The regular expression `\\`, which matches a literal `\`, has the string representation `"\\\\"` as each `\` in the regular expression requires `\\` in the string representation.
+
+## Color name examples
+
+- We create a simple data frame consisting of the built in names in R.
+    - `colors()` creates a vector of color names
+    - `row_number()` creates a sequence from 1 to the number of rows of the data frame
+    - the argument `.before = colors` places the variable `index` before `colors`.
+
+```{r color-data}
+df_colors = tibble(colors = colors()) %>% 
+  mutate(index = row_number(), .before = colors)
+
+print(df_colors)
+```
+
+## Problems
+
+> Find the shortest and longest color names
+
+- It would be nice to have a function which returns the length of a string.
+- Consult the **stringr** cheat sheet:
+    - Aha! Use `str_length()` to find the length of each string  
+- Then use `slice_max()` or `slice_min()` to identify the extremes  
+
+### Live Coding
+
+```{r}
+## shortest
+
+## longest 
+
+```
+
+
+
+
+
+#### Prepared Solution
+
+```{r}
+## Add the string length
+df1 = df_colors %>%
+  mutate(length = str_length(colors))
+
+## Longest
+longest = df1 %>%
+  slice_max(n = 1, order_by = length)
+
+longest
+
+## Shortest
+shortest = df1 %>%
+  slice_min(n = 1, order_by = length)
+
+shortest
+```
+
+- The longest color name is `r longest$colors` with a length of `r longest$length` characters.  
+- The shortest color names are `r shortest$colors[1]` and `r shortest$colors[2]`, each with a length of `r shortest$length[1]`.
+
+> Make a bar plot of the string lengths
+
+- Note use of `scale_x_continuous()` to change the default breaks and labels in the plot.
+
+```{r length-plot}
+ggplot(df1, aes(x=length)) +
+  geom_bar(fill = longest$colors, color="black") +
+  xlab("Word Length") +
+  scale_x_continuous(labels = 3:20, breaks = 3:20) +
+  ggtitle("R Colors Name Length Distribution") +
+  theme_bw()
+```
+
+
+> Find the color names of length 8. Report the number, and the first and last color name (alphabetically).
+
+### Live Coding
+
+```{r}
+
+```
+
+
+
+
+
+
+
+#### Prepared Solution
+
+```{r length-8}
+df2 = df_colors %>%
+  filter(str_length(colors) == 8) %>% 
+  arrange(colors)
+
+df2 %>% 
+  summarize(n = n(),
+            first = min(colors),
+            last = max(colors))
+
+df2 %>% 
+  print(n = Inf)
+```
+
+> How many color names begin and end with the same letter? Report the number and the first and last alphabetically.
+
+### Live Coding 
+
+```{r}
+
+```
+
+
+
+
+### Prepared Solutions
+
+#### Solution 1
+
+- One approach is to create new variables with the first and last letters of each column and then filter for cases where these are the same.
+- Is there a function to grab part of a string? Check the cheat sheet:
+- Aha! There are several potentially useful functions.
+- `str_sub(string, start, end)` returns the sub string from `start` to `end`
+    - Use negatives to count from the end.
+    - Can also be used to assign values by position
+- `str_extract(string, pattern)` returns the first substring to match the regular expression encoded in `pattern`.
+    
+```{r}
+## Solution using str_sub()
+## Positive start and end count from the start
+## Negative count from the end
+df3a = df_colors %>%
+  mutate(first = str_sub(colors,1,1),
+         last = str_sub(colors,-1,-1)) %>%
+  filter(first == last)
+df3a
+
+df3a %>%
+  summarize(n=n(), first = min(colors), last = max(colors))
+```
+
+#### Solution 2
+
+- Next, use regular expressions and `str_extract()`.
+- Note the special characters:
+    - `^` matches the start of the string
+    - `$` matches the end of the string
+    - `.` matches any single character (except for end of line)
+
+```{r}
+## Solution using str_extract()
+df3b = df_colors %>% 
+  mutate(first = str_extract(colors, "^."),
+         last = str_extract(colors, ".$")) %>% 
+  filter(first == last)
+
+df3b
+
+df3b %>%
+  summarize(n=n(), first = min(colors), last = max(colors))
+```
+
+#### Solution 3
+
+- We could have accomplished the same thing without creating the extra columns
+- However, it can be helpful to create the columns to make sure the code is doing what you think it is doing
+
+```{r}
+df_colors %>% 
+  filter( str_extract(colors, "^.") == str_extract(colors, ".$") )
+```
+
+#### Solution 4
+
+- Another fancy solution uses the group operator, `()`.
+    - Each part of a regular expression surrounded by parentheses is saved and labeled for further use.
+        - The first part may be recalled with `\1`, the second with `\2`, and so on.
+        - When representing `\` in a regular expression as a string in R, recall it needs to be "escaped" with a leading `\`
+- We use `str_detect()` to detect when the color name matches a pattern where the first character is a letter that is also used as the last character.
+- Note the use of the special regular expression syntax `[:alpha:]` which matches letters of the alphabet.
+    - Alternatives are:
+        - `[:lower:]` or `[a-z]` for lowercase letters
+        - `[:upper:]` or `[A-Z]` for uppercase letters
+        - `[a-zA-Z]` for lowercase or uppercase letters
+- The character `.` matches any character.
+- The character `*` repeats the previous pattern 0 or more times.
+- Put all together, the regular expression `^([:alpha:]).*\1$` matches:
+    - a letter at the beginning of the string
+    - then any set of characters of length 0 or more
+    - followed by the same letter as at the start of the string at the end
+- We need to replace `\` with `\\` in the string representation of the regular expression.
+
+```{r}
+df3c = df_colors %>%
+  filter(str_detect(colors, "^([:alpha:]).*\\1$"))
+
+df3c
+```
+
+
+> Find all color names that begin with a letter from "aeiou" and end with a letter from "aeiouy"
+
+### Live Coding
+
+```{r}
+
+```
+
+
+
+
+
+
+#### Solution
+
+- Regular expression special symbols:
+    - `^` is the beginning of the string
+    - `$` is the end of the string
+    - `.` is any character (except a newline)
+    - `*` means repeat 0 or more times
+    - `[...]` matches any character from between the `[` and the `]`
+
+```{r vowel}
+df4 = df_colors %>%
+  filter(str_detect(colors, "^[aeiou].*[aeiouy]$"))
+df4
+```
+
+
+
+> Find all colors names which begin with a vowel, end with a consonant, have no digits in the name, and have between 4 and 10 total characters
+
+### Live Coding
+
+```{r}
+
+```
+
+
+
+
+
+
+#### Prepared Solution
+
+- Regular expression `[:digit:]` stands for a digit.
+    - Alternatives are `\d` or `[0-9]`
+- In an R string, need to double the `\` in order to represent the literal `\`.
+- A `^` right after `[` negates the matches between the `[` and the `]`
+- `{n}` repeats the previous pattern `n` times
+- `{m,n}` repeats the previous pattern from `m` to `n` times
+
+```{r}
+df5 = df_colors %>%
+  filter(!str_detect(colors,"[:digit:]")) %>% # no digit
+  filter(str_detect(colors, "^[aeiou].{2,8}[^aeiouy]$")) %>%
+  mutate(length = str_length(colors)) # added to check the length
+df5
+```
+
+
+
+> Find all color names that repeat a letter twice in a row.
+
+### Live Coding
+
+```{r}
+
+```
+
+
+
+
+
+
+
+#### Prepared Solution
+
+- Surrounding a pattern with `()` changes the order of preference and forms a group.
+- Whichever pattern matches a group may be referred to by `\x` where `x` is the number of the group
+    - For example, `([a-e])\1` will match double letters from a through e.
+    - But in the string representation in R, we need to precede `\` by another `\` to indicate we mean the literal `\`. So, `"([a-e])\\1"`
+    
+```{r}
+## Lecture
+df6 = df_colors %>%
+  filter(str_detect(colors, "([:alpha:])\\1"))
+
+df6
+```
+
+> Find all color names which contain the substrings "red", "blue", or "green"
+
+### Live Coding
+
+```{r}
+
+```
+
+
+
+
+
+
+#### Prepared Solution
+
+- separate alternative patterns with a `|`
+
+```{r}
+## Lecture
+df7 = df_colors %>%
+  filter(str_detect(colors, "red|blue|green"))
+
+df7
+```
+
+
+
+## Wordle Examples (if time permits)
+
+### Read the Wordle Data
+
+```{r}
+wrdl_data = read_csv("../../data/wordle_data.csv")
+#wrdl_data
+wrdl_solutions = wrdl_data %>% 
+  filter(solution == TRUE) %>% 
+  select(word)
+```
+
+- A number of questions about Wordle would be easier to answer if we had the data in a long format with one letter per row and variables to indicate the word it came from and the position of the letter.
+
+- This block of code does so using `str_sub()` to extract the letters by position and then `pivot_longer()` to get the table.
+
+- A more general solution would not depend on all of the words having five letters.
+
+
+```{r}
+wrdl_long = wrdl_solutions %>% 
+  ## add an index variable
+  mutate(index = row_number(), .before = word) %>% 
+  
+  ## probably a better way to do this with iteration!
+  ## use digits as column names so they can be made
+  ##   into position values after reshaping the data
+  mutate(`1` = str_sub(word,1,1)) %>% 
+  mutate(`2` = str_sub(word,2,2)) %>% 
+  mutate(`3` = str_sub(word,3,3)) %>% 
+  mutate(`4` = str_sub(word,4,4)) %>%   
+  mutate(`5` = str_sub(word,5,5)) %>% 
+  
+  ## now reshape
+  pivot_longer(`1`:`5`,
+               names_to = "position",
+               values_to = "letter") %>% 
+  ## change position values from strings to numbers
+  mutate(position = as.integer(position))
+#wrdl_long
+```
+
+### Questions
+
+> How often is each letter used in the set of solutions?
+
+```{r}
+
+```
+
+#### Prepared Solution
+
+```{r}
+q1 = wrdl_long %>% 
+  count(letter) %>% 
+  arrange(desc(n))
+
+q1 %>% 
+  print(n = Inf)
+```
+
+> Graph the results
+
+```{r}
+q1 %>% 
+  mutate(letter = reorder(letter,-n)) %>% 
+ggplot(aes(x = letter, y = n)) +
+  geom_col(color = "black", fill = "blue") +
+  ggtitle("Letter usage in Wordle")
+```
+
+
+
+> How many times does each letter appear in each position?
+
+#### Live Coding
+
+```{r}
+
+```
+
+#### Prepared Solution
+
+```{r}
+pos_counts = wrdl_long %>% 
+  count(letter, position) %>%
+  arrange(position, desc(n))
+```
+
+- Use `pivot_wider()` for a summary table, formatted nicely.
+
+```{r}
+pos_counts_table = pos_counts %>% 
+  pivot_wider(names_from = position,
+              values_from = n,
+              values_fill = 0)
+
+pos_counts_table %>% 
+  kable() %>% 
+  kable_styling(position = "left", full_width = FALSE,
+                bootstrap_options = c("striped"))
+```
+
+> Which Wordle solutions have four vowels?
+
+#### Prepared Solutions
+
+```{r}
+wrdl_solutions %>% 
+  mutate(n_vowels = str_count(word, "[aeiou]")) %>% 
+  filter(n_vowels == 4)
+```
+
+> Which Wordle solutions contain the same letter three or more times?
+
+#### Prepared Solutions
+
+```{r}
+wrdl_long %>% 
+  count(word, letter) %>% 
+  filter(n >= 3) %>% 
+  select(-letter)
+```
+
+
+### Extensions
+
+- There are many more ways to use tools of data science using R to explore Wordle:
+  - Write code to simulate playing
+  - Write a function that takes results from previous guesses and returns a list of remaining solutions
+  - Examine strategies for best words (by different criteria)
+
+- Maybe some groups will explore these ideas with a project.
+
+
+
+

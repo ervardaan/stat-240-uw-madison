@@ -1,0 +1,292 @@
+---
+title: "Week 5 Practice"
+author: "Bret"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      error = TRUE)
+                    
+library(tidyverse)
+library(lubridate)
+library(kableExtra)
+library(readxl)
+source("../../scripts/viridis.R")
+```
+
+### Read the 2018 airport data
+
+```{r read-data}
+## Three-letter airport codes
+airport_codes = c("DEN", "JFK", "LAX", "MSP", "ORD", "SFO")
+
+## use purrr::read_dfr() to read each csv file
+##   and bind their rows into a single output data frame
+awt = map_dfr(airport_codes, ~{
+  filename = str_c("../../data/", .x, "-2018.csv")
+  return( read_csv(filename) )
+})
+```
+
+
+```{r}
+## eliminate some columns
+awt_1 = awt %>% 
+  select(-contains("_wait"), -all_total, -all_flights, -all_booths)
+
+## Show the column names
+names(awt_1)
+
+## Reshape the data by pivoting longer
+
+awt_long = awt_1 %>%
+  pivot_longer(cols = starts_with("all_"),
+               names_to = "wait_interval",
+               values_to = "n")
+
+## Show the column names of the reshaped data frame
+names(awt_long)
+```
+
+#### pivot_wider()
+
+```{r}
+awt_sum = awt %>% 
+  group_by(airport, hour) %>% 
+  summarize(mean_wait_time = sum(all_avg_wait * all_total) / sum(all_total))
+
+awt_sum %>% 
+  head(n = 10)
+  
+```
+
+```{r}
+## pivot_wider example
+awt_sum_wide = awt_sum %>% 
+  pivot_wider(names_from = airport, values_from = mean_wait_time) %>% 
+  arrange(hour)
+
+awt_sum_wide %>% 
+  print(n = Inf, width = Inf)
+```
+
+
+### fill-in example
+
+```{r}
+## First total arrivals by airport and hour
+awt_arrivals = awt %>% 
+  group_by(airport, hour) %>% 
+  summarize(flights = sum(all_flights))
+
+dim(awt_arrivals)
+
+awt_arrivals %>% 
+  print(n = 30)
+```
+
+
+### Live pivot_wider()
+
+```{r}
+arrivals_wide = awt_arrivals %>% 
+  pivot_wider(names_from = airport,
+              values_from = flights,
+              values_fill = 0) %>% 
+  arrange(hour)
+```
+
+```{r, echo = FALSE}
+arrivals_wide
+
+arrivals_wide %>% 
+  kable() %>% 
+  kable_styling( position = "left", full_width = FALSE,
+                 bootstrap_options = c("striped"))
+```
+
+### Obesity Data
+
+```{r read-one}
+male_05_17 =  read_excel(
+  "../../data/Obesity+Prevalence+by+ZIP+Code+and+Age+Group,+Males.xlsx",
+  sheet=3, skip=5, na=".")
+
+str(male_05_17)
+```
+
+
+```{r one-reformat}
+male_05_17 = male_05_17 %>%
+  select(starts_with("ZIP"),
+         starts_with("Number"),
+         starts_with("Population")) %>%
+  rename(zip = starts_with("ZIP"),
+         obese = ends_with("Obesity"),
+         n = ends_with("BMI"),
+         pop = starts_with("Population")) %>%
+  mutate(sex = "male") %>%
+  mutate(age = "5-17")
+
+head(male_05_17)
+```
+
+
+
+```{r obesity-info}
+temp = tibble(
+  sheet = 3:7,
+  age = c("05-17","18-34","35-54","55-74","75+"))
+
+obesity_info = expand_grid(sex = c("Females", "Males"),
+                           sheet = 3:7) %>% 
+  left_join(temp, by = "sheet")
+
+obesity_info
+```
+
+
+
+```{r obesity-read-all}
+obesity = obesity_info %>% 
+  pmap_dfr(~{
+    str_glue("../../data/Obesity+Prevalence+by+ZIP+Code+and+Age+Group,+{..1}.xlsx") %>% 
+      read_excel(sheet = ..2, skip = 5, na = ".") %>% 
+      select(starts_with(c("ZIP","Number","Population"))) %>% 
+      rename(zip = starts_with("ZIP"),
+             obese = ends_with("Obesity"),
+             n = ends_with("BMI"),
+             pop = starts_with("Population")) %>% 
+      mutate(sex = ..1, age = ..3)
+  }) %>% 
+  as_tibble() %>% 
+  mutate(sex = recode(sex,
+                      "Females" = "female",
+                      "Males" = "male")) %>% 
+  relocate(zip, sex, age) %>% 
+  mutate(zip = as.character(zip))
+```
+
+
+
+```{r}
+obesity = obesity %>% 
+  mutate(obese_pop = pop * (obese/n),
+         non_obese_pop = pop * (1 - obese/n))
+
+head(obesity)
+```
+
+### Question 1
+
+- Total population
+
+```{r}
+total_pop = obesity %>% 
+  summarize(pop = sum(pop))
+
+total_pop
+```
+
+### Question 2
+
+- Total pop by zip code
+
+```{r}
+q2 = obesity %>% 
+  group_by(zip) %>% 
+  summarize(pop = sum(pop))
+
+
+ggplot(q2, aes(x = pop)) +
+  geom_boxplot() +
+  scale_y_continuous(breaks = NULL) +
+  scale_x_continuous(labels = scales::comma)
+
+## base R
+quantile(q2$pop)
+
+## tidyverse
+q2 %>% 
+  summarize(
+    min = min(pop),
+    q25 = quantile(pop, 0.25))
+```
+
+### Question 3
+
+```{r}
+q3 = obesity %>% 
+  select(pop, obese_pop) %>% 
+  drop_na() %>% 
+  summarize(total_obese = sum(obese_pop),
+            total_pop = sum(pop),
+            obesity_prop = total_obese / total_pop)
+
+q3
+```
+
+### Question 4
+
+```{r}
+q4 = obesity %>% 
+  drop_na(obese_pop) %>% 
+  group_by(sex) %>% 
+  summarize(total_obese = sum(obese_pop),
+            total_pop = sum(pop),
+            obesity_pct = 100*total_obese / total_pop)
+
+q4
+```
+
+### Question 5
+
+- Obesity rates among children
+
+```{r}
+q5a = obesity %>% 
+  drop_na(obese_pop) %>% 
+  filter(age == "05-17") %>% 
+  group_by(sex) %>% 
+  summarize(total_obese = sum(obese_pop),
+            total_pop = sum(pop),
+            obesity_pct = 100*total_obese / total_pop)
+
+q5a
+```
+
+### Question 7
+
+```{r}
+q7 = obesity %>% 
+  drop_na(obese_pop) %>% 
+  group_by(sex, age) %>% 
+  summarize(total_obese = sum(obese_pop),
+            total_pop = sum(pop),
+            obesity_pct = 100*total_obese / total_pop)
+
+q7_wide = q7 %>% 
+  select(-starts_with("total")) %>% 
+  pivot_wider(names_from = sex, values_from = obesity_pct)
+
+q7
+
+q7_wide
+
+ggplot(q7, aes(x=age, y = obesity_pct, fill=sex)) +
+  geom_col(position = position_dodge()) +
+  xlab("Age Group") +
+  ylab("% Obesity") +
+  ggtitle("Obesity Rates in Wisconsin by Age and Sex")
+```
+
+- Childhood obesity rate is low because of change in definition
+    - Definition is top 5% of BMI for age/sex
+    - Rate in WI is triple the national average
+- Age 18-34 is the only age group where the female obesity prevalence is greater than the male
+    - Likely due to some pregnant women who were not obese before pregnancy being labeled as obese in this definition while pregnant
+- Middle age has more obesity than younger adults
+- Obesity rate much lower age 75+
+    - Likely due to a higher death rate prior to age 75 for obese than non-obese individuals
+

@@ -1,0 +1,362 @@
+---
+title: "Stat 240: Project Draft"
+author: "Group 2: Aurora Toutant, Ava Bennett, Sanaa Semia, Yang Zhang"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE,
+                      warning = FALSE, error = TRUE, fig.height = 3.5)
+library(tidyverse)
+library(viridisLite)
+library(lubridate)
+library(kableExtra)
+library(broman)
+source("../../scripts/viridis.R")
+source("../../scripts/ggprob.R")
+theme_set(theme_minimal())
+```
+
+\newcommand{\E}{\mathsf{E}}
+\newcommand{\Var}{\mathsf{Var}}
+\newcommand{\SD}{\mathsf{SD}}
+\renewcommand{\prob}{\mathsf{P}}
+
+## Introduction
+
+Though there have been many strides towards gender equality, there still exists much inequity between men and women in the workforce and within academia. Women may make significantly lower salaries, despite performing as well or better than their male counterparts. Our group is primary questioning if there is a statistical difference of salary between men and women. We also wonder if there is a contrast of college GPA between genders. In this study, we are motivated to examine key differences between male and female undergraduate engineering/IT graduates to see if this form of gender inequality is present in India.
+
+Our group believes that there is a statistically significant difference of salaries and college GPA between graduating male and female engineers/IT with a Bachelor's degree in India.
+
+## Background
+
+The link to the dataset was found on Kaggle: https://www.kaggle.com/datasets/manishkc06/engineering-graduate-salary-prediction ^[KC, Manish. “Engineering Graduate Salary Prediction.” Kaggle, 13 Sept. 2020, https://www.kaggle.com/datasets/manishkc06/engineering-graduate-salary-prediction. ]
+
+The data was collected and sourced from Aspiring Minds which is “an AI driven, pre-hire talent assessment platform that evaluates four major areas necessary for candidates to succeed in a role—cognitive abilities, spoken language, behavior, and functional (technical) skills” (American Staffing Association) ^[“Aspiring Minds/SHL.” American Staffing Association, https://americanstaffing.net/tech-companies/aspiring-minds-shl/. ]. Aspiring Minds collected this data by having graduating students take the AMCAT (Aspiring Minds Computer Adaptive Test). This test helps recruiters identify the suitability and predicted performance of a candidate for different job roles.
+
+This dataset is a sample from the entire population of graduating engineering and IT students in India. Several employers in India require or recommend candidates taking the AMCAT. However, this dataset does not entirely capture the salary of all Indian engineering and IT graduates since some may not take the test, so therefore this is only a sample.
+
+We did notice that there a significant difference in the number of B.Tech/B.E. samples between females and males. Females only had 661 samples while males had 2086 after filtering the data. A smaller sample size for females compared to males could result in less precise estimates of the characteristics of the female population in the sample, and it may limit the generalization of the findings to the larger female population. However, per the CLT, we have a sufficiently large enough and independent sample to proceed with our analysis.
+
+A key variable in our project is sex which is listed as the `Gender` column which is either male or female. Another key variable is the type of degree the student is receiving under `Degree` which is B.Tech/B.E., MCA, or other. For consistency, we are only analyzing people with B.Tech/B.E. degrees to eliminate the impact that professional degrees have on salary. Our group is also looking into the `Salary` column which is the annual salary offered to the candidate in INR (Indian rupee). We also explore relationships that their college GPA on a 0-100 scale, represented by `collegeGPA`, and the state that the college is located in, `CollegeState`, to see how those factors may impact the graduating student's salary.
+
+With this data, we are exploring to see if there are statistically significant college GPA or salary differences between men and women. We will analyze this data with a series of graphs and tables and perform two hypothesis tests comparing each sex's population sample means of college GPA and salary. 
+
+## Analysis
+
+#### Data Wrangling
+
+By observing the dataset, we clean up and transform the data to fit the needs of our analysis by:
+
+- eliminating NA values
+- filtering out non-Bachelor's degree graduating students
+- selecting Gender, CollegeGPA, CollegeState, Salary variables
+- adjusting the Salary value column to be in thousands to improve readability
+- renaming the Gender column to female and male
+
+```{r echo=FALSE}
+#Reading in the data
+engineering_graduate_salary = read_csv("../Engineering_graduate_salary.csv")
+
+#Cleaning the data
+grad_salary = engineering_graduate_salary %>%
+  drop_na() %>%
+  filter(Degree=="B.Tech/B.E.") %>%
+  select(Gender, CollegeState, collegeGPA, Salary) %>%
+  mutate(Salary=Salary/1000) %>%
+  mutate(Gender = case_when(Gender == "f" ~ "female",
+                            Gender == "m" ~ "male"))  %>%
+  rename(CollegeGPA = collegeGPA) 
+```
+
+
+#### Data Investigation
+
+This boxplot shows the general data information of college GPA in the female and male samples. 
+
+From the plot, we notice there are extreme outliers, so we will remove these points by removing GPA values that are below 50 later. This graph shows minute and difficult-to-discern differences in each gender. More specified graphs reflecting these changes will be provided later in our analysis after our initial boxplots have been constructed.
+
+
+```{r echo=FALSE}
+ggplot(grad_salary, aes(x = Gender, y = CollegeGPA)) +
+  geom_boxplot() +
+  labs(title = "College GPA Boxplots by Gender", y = "College GPA (0-100 scale)")
+```
+
+
+
+
+This boxplot shows the wide range of annual salaries in the female and male samples. This graph shows many nearly undistinguishable differences in each gender making it clear that more specified graphs are required to highlight what separates these two groups.
+
+```{r echo=FALSE}
+ggplot(grad_salary, aes(x = Gender, y = Salary)) +
+  geom_boxplot() +
+  labs(title = "Salary Boxplots by Gender", y = "Salary (INR in thousands)")
+```
+
+
+
+#### Data Finalization
+
+```{r read-data, echo = FALSE}
+# Categorizing GPA levels
+grad_salary = grad_salary %>%
+  filter(CollegeGPA > 50) %>%
+  mutate(GPA_level = case_when(CollegeGPA > 50 & CollegeGPA <= 60 ~ "50-60",
+                               CollegeGPA > 60 & CollegeGPA <= 70 ~ "60-70",
+                               CollegeGPA > 70 & CollegeGPA <= 80 ~ "70-80",
+                               CollegeGPA > 80 & CollegeGPA <= 90 ~ "80-90",
+                               CollegeGPA > 90 & CollegeGPA <= 100 ~ "90-100")) %>%
+# Categorizing salary levels
+  mutate(Salary = Salary) %>%
+  mutate(salary_level = case_when(Salary <= 100 ~ "less than 100k",
+                                  Salary > 100 & Salary <= 200 ~ "100 ~ 200k",
+                                  Salary > 200 & Salary <= 300 ~ "200 ~ 300k",
+                                  Salary > 300 & Salary <= 400 ~ "300 ~ 400k",
+                                  Salary > 400 & Salary <= 500 ~ "400 ~ 500k",
+                                  Salary > 500 & Salary <= 600 ~ "500 ~ 600k",
+                                  Salary > 600 & Salary <= 700 ~ "600 ~ 700k",
+                                  Salary > 700 & Salary <= 800 ~ "700 ~ 800k",
+                                  Salary > 800 & Salary <= 900 ~ "800 ~ 900k",
+                                  Salary > 900 & Salary <= 1000 ~ "900 ~ 1000k",
+                                  Salary > 1000 ~ "more than 1000k"))
+  
+```
+
+From the previous boxplots, we observe that the range of variables are wide, so we will create a new categorical column to separate salary into different intervals.
+
+This is the dataset we will use for performing the remainder of analysis. We now include a `GPA_level` column with bucketed ranges from 50-60, 60-70, 7-80, 80-90, and 90-100 to eliminate GPA outliers <50 as mentioned previously. This data set also will now include `salary_level` that has a categorized value of INR yearly salary as "from less than 100k", 100 ~ 200k, ..., 800 ~ 900k, 900 ~ 1000k, and "more than 1000k". Below is the head of this refined dataset. Below is a snippet of the first 6 rows of this dataframe.
+
+```{r echo=FALSE}
+head(grad_salary)
+```
+    
+
+
+
+#### Summarization Table
+
+The table shows the sample size, the mean value, and standard deviation of college GPA and salary for female and male.
+
+From the table, we can see that sample size of male is two times more than female, so we use proportion later to analyze data. Also, we notice that the mean value of college GPA of female is higher than male, while mean value of salary of female is lower than male. So, we come up with the conjecture that female are paid less than male although they have higher GPA in college. 
+
+```{r echo=FALSE}
+summary_data = grad_salary %>%
+  group_by(Gender) %>%
+  summarize(Sample_Size = n(), mean(CollegeGPA), mean(Salary), sd(CollegeGPA), sd(Salary))
+
+female_sample_size = summary_data$Sample_Size[1]
+male_sample_size = summary_data$Sample_Size[2]
+female_mean_salary = summary_data$`mean(Salary)`[1]
+male_mean_salary = summary_data$`mean(Salary)`[2]
+female_sd_salary = summary_data$`sd(CollegeGPA)`[1]
+male_sd_salary = summary_data$`sd(CollegeGPA)`[2]
+female_mean_GPA = summary_data$`mean(CollegeGPA)`[1]
+male_mean_GPA = summary_data$`mean(CollegeGPA)`[2]
+female_sd_GPA = summary_data$`sd(Salary)`[1]
+male_sd_GPA = summary_data$`sd(Salary)`[2]
+
+summary_data
+```
+
+
+
+#### Graphical Summarization
+
+This bar graph shows the mean salary values of female and male in different states in India.
+
+We have decided not to include Goa, Jammu & Kashmir, Meghalaya, Sikkim, and Union Territory as states in this particular graph because only males were present in those regions. However, this data is included in the remainder of our analysis.
+
+This graph also supports our inference to our primary question that there is, in fact, a difference between male and female salaries. We notice that men have a higher salary than women in most states. We can therefore infer that female are usually paid less than male in the whole country.
+
+```{r echo=FALSE}
+# Calculating the mean salary for each state after filtering the data
+state_salary_df = grad_salary %>% 
+  group_by(Gender, CollegeState) %>% 
+  filter(CollegeState != "Goa", CollegeState != "Jammu and Kashmir", 
+         CollegeState != "Meghalaya", CollegeState != "Sikkim",
+         CollegeState != "Union Territory") %>% 
+  summarize(meanSalary = mean(Salary)) %>% 
+  arrange(CollegeState, desc(meanSalary))
+
+# Creating the bar plot
+ggplot(state_salary_df, aes(x = CollegeState, y = meanSalary, fill = Gender)) +
+  geom_col(width=0.5,    
+           position=position_dodge(0.5))  +
+  xlab("State") +
+  ylab("Mean Salary (INR in thousands)") +
+  ggtitle("Mean Salary in Different States by Gender") +
+  theme(axis.text.x = element_text(angle = 45))
+```
+
+
+
+
+
+
+Since the salary range is wide, we have decided to plot salary distribution by separating into different salary levels for better visualization. This graph shows a salary level distribution for the female and male samples.
+
+From the plot, we notice that males have tend to have a higher proportion in higher salary level than females. This further solidifies our inference that salaries between genders is not equal because of this trend in salary level distribution. Our plot also ensures that the difference in population means is not specific to geographic area alone.
+
+```{r echo=FALSE}
+# Proportion of gender
+summary_salary_level_by_gender = grad_salary %>%
+  group_by(salary_level, Gender) %>%
+  summarize(n = n()) %>% 
+  mutate(prop = case_when(Gender == "female" ~ (n/female_sample_size * 100),
+                          Gender == "male" ~ (n/male_sample_size * 100)))
+
+# Plotting the proportion data
+ggplot(summary_salary_level_by_gender, aes(x = Gender, y = prop, fill = Gender)) +
+  geom_col(position = position_dodge2(preserve = "single")) +
+  xlab("Salary Level") +
+  ylab("Proportion (%)") +
+  ggtitle("Salary (INR) Level Distribution by Gender") +
+  scale_fill_viridis_d() +
+  guides(fill = guide_legend(title = "Gender")) +
+  theme(legend.position = "right") +
+  facet_wrap(vars(salary_level))
+```
+
+
+
+
+This graph shows a college GPA distribution for the female and male samples. Both of these plots are much closer to a normal approximation making both of their means appear much more reliable. 
+
+From the plot, we notice that female density plot is to the right of the male density plot and has a smaller standard deviation, which shows female may get better GPA than male in college on avergae. This shows the females of this sample have more consistency and aptitude in GPA but this may have been affected by a lower sample size of females.
+
+This plot reinforces our inference for our supplementary question that men and women in engineering/IT in India have differences in college GPA.
+
+```{r echo=FALSE}
+ggplot(grad_salary, aes(x = CollegeGPA, fill = Gender)) +
+  geom_density(alpha = .25) +
+  labs(title = "College GPA Density Plot by Gender", x = "College GPA (50-100)", y = "Density") 
+```
+
+
+
+
+This graph shows the average salary by college GPA and gender. We use categorized salary and college GPA when creating this graph.
+
+We notice as GPA level increases, the average salary tends to increase as well. However, males always get better salary than females within same GPA interval. Furthermore, mens salaries appear to increase much more as their GPA increases compared to women.
+
+This graph further aligns with our group's inferences that men and women's salaries are different since men appear to have significantly higher salaries than women despite being within the same GPA level.
+
+```{r echo=FALSE}
+GPA_summary_df = grad_salary %>%
+  group_by(GPA_level, Gender) %>%
+  summarise(meanSalary = mean(Salary)) 
+
+ggplot(GPA_summary_df, aes(x = GPA_level, y = meanSalary, fill = Gender)) +
+  geom_col(position = "dodge") +
+  labs(title = "Average Salary by College GPA Level and Gender", x = "College GPA Level (50-100)", y = "Average Salary (INR in thousands)")
+```
+
+
+#### Inference Tests
+
+For both inferences, we are using two-sides t-tests to analyze the differences of engineering/IT male and females salaries and college GPAs in India.
+
+The populations are people who took the AMCAT in India.
+-Males are one population
+-Females are another population
+The samples are the people in the data set.
+
+```{r include=FALSE}
+female_grad_salary = grad_salary %>%
+  select(Gender, CollegeGPA, Salary) %>%
+  filter(Gender == "female")
+
+male_grad_salary = grad_salary %>%
+  select(Gender, CollegeGPA, Salary) %>%
+  filter(Gender == "male")
+```
+
+> Salary T-test
+
+1. Hypothesis
+$$
+H_0: µ1(Female Mean Salary)= µ2(Male Mean Salary)  \\
+H_a: µ1(Female Mean Salary) \neq µ2(Male Mean Salary)
+$$
+
+2. Performing the T-test
+```{r echo=FALSE}
+x = female_grad_salary %>%
+  pull(Salary)
+
+y = male_grad_salary %>%
+  pull(Salary)
+
+t.test(x, y)
+```
+
+3. P-value 
+
+$$p = 0.01406$$
+
+
+4. Confidence Interval
+
+With 95% confidence the difference of female mean salary and male mean salary is between $-38.556812$ and $-4.338165$.
+
+
+5. Results
+
+There is significant evidence that µ1 does not equal µ2 because the p-value, 0.01406, is smaller than alpha/2, .025. 
+
+
+> College GPA T-test
+
+1. Hypothesis
+
+$$
+H_0: µ1(Female Mean GPA) = µ2(Male Mean GPA) \\
+H_a: µ1(Female Mean GPA) \neq µ2(Male Mean GPA)
+$$
+2. Performing the T-test
+```{r echo=FALSE}
+x = female_grad_salary %>%
+  pull(CollegeGPA)
+
+y = male_grad_salary %>%
+  pull(CollegeGPA)
+
+t.test(x, y)
+```
+
+
+3. P-value 
+
+$$p < 2.2^{-16}$$
+
+4. Confidence Interval 
+
+With 95% confidence the difference of female mean GPA and male mean GPA is between $2.384386$ and $3.564110$.
+
+5. Conclusion
+
+There is significant evidence that µ1 does not equal µ2 because the p-value, 2.2e-16, is smaller than alpha/2, .025. 
+
+
+## Discussion
+
+Male graduates have a higher average starting salary, around 312,000 INR, compared to female graduates who have an average salary of 291,000 INR. Men make more than women in the majority of Indian states, with women making only slightly more than men in 4 states. When broken down by salary level, men make up a higher proportion of individuals in higher salary levels. 
+
+There is strong evidence that the mean salary for female is not equal to mean salary for male ($p = 0.01406$, two-sided t-test) with 95% confidence the difference of female mean salary is between $-38.556812$ and $-4.338165$ thousand INR less then male mean salary on average that have have a Bachelor's degrees in India who took the AMCAT.
+
+Though women make less, they have a higher average GPA of 74, while their male counterparts have an average GPA of 71. 
+
+There is strong evidence that the mean salary for female is not equal to mean salary for male ($2.2^{-16}$, two-sided t-test) with 95% confidence is that female mean college GPA is between $2.384386$ and $3.564110$ points higher than male mean college GPA on average that have Bachelor's degrees in India who took the AMCAT.
+
+There is also a higher density of women at higher GPA level, with a lower standard deviation than men, indicating women consistently score higher. Though women perform better academically, they still continue to have lower salaries. A comparison of varying GPA levels shows that women make less at each GPA level compared to their male counterparts, with the greatest difference in salary being at the highest GPA level. 
+
+A potential limitation of this analysis is the overrepresentation of men in the sample. There were nearly 700 female observations included, compared to approximately 2100 men. This is likely due to the demographic makeup of engineers/IT because engineering/IT tends to be a male dominated field. 
+
+Further questions to ask could address a salary breakdown between males and females by engineering/IT degree. It may be a possibility that certain types of engineers/IT fields make less than others, and women are overrepresented in these lower paying engineering/IT degrees. 
+
+Overall, it is apparent that female engineering graduates make less than male engineering graduates, regardless of GPA or region. Despite outperforming men academically, women still have a significantly lower salary. 
+
+## References
+
+

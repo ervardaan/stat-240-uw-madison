@@ -1,0 +1,285 @@
+---
+title: "Final Draft"
+output: html_document
+date: "2023-04-17"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message=FALSE, warning=FALSE)
+library(tidyverse)
+source("../scripts/viridis.R")
+source("../scripts/ggprob.R")
+```
+
+```{r}
+Colleges = read_csv("../data/Most-Recent-Cohorts-Institution.csv")
+df = Colleges %>%
+  select(INSTNM, ADM_RATE, LATITUDE, LONGITUDE, UGDS_BLACK, UGDS_WHITE, UGDS_HISP, UGDS_ASIAN, UGDS_MEN, UGDS_WOMEN,ACTCM25, ACTCMMID, ACTCM75, SATVR25, SATVRMID, SATVR75, STABBR) %>%
+  drop_na() %>%
+  filter(ADM_RATE != "NULL" & LATITUDE != "NULL"& LONGITUDE != "NULL"& UGDS_ASIAN != "NULL", UGDS_WHITE != "NULL", UGDS_WOMEN != "NULL", ACTCMMID != "NULL", SATVR25 != "NULL", SATVR75 != "NULL")%>%
+  rename(c("university" = INSTNM, "adm_rate" = ADM_RATE,"lat" = LATITUDE, "long" =  LONGITUDE, "asian" = UGDS_ASIAN, "white" = UGDS_WHITE, "black"= UGDS_BLACK, "hispanic"= UGDS_HISP, "male"= UGDS_MEN, "female"= UGDS_WOMEN, "state" = STABBR, "ACT25" = ACTCM25,"ACT75" = ACTCM75, "ACTMID" = ACTCMMID, "SAT25" = SATVR25,"SAT75" = SATVR75, "SATMID" = SATVRMID))%>%
+  mutate(location = case_when(
+        as.numeric(long) >=-90 ~ "East Coast",
+    as.numeric(long) <=-90 ~ "West Coast"
+  ))%>%
+  mutate(
+      adm_rate = as.numeric(adm_rate),
+      lat = as.numeric(lat),
+      long = as.numeric(long),
+    black = as.numeric(black),
+    white = as.numeric(white),
+    hispanic = as.numeric(hispanic),
+    asian = as.numeric(asian),
+    male = as.numeric(male),
+    female = as.numeric(female),
+    ACT25 = as.numeric(ACT25), 
+    ACT75 = as.numeric(ACT75), 
+    ACTMID = as.numeric(ACTMID),
+    SAT25 = as.numeric(SAT25), 
+    SAT75 = as.numeric(SAT75), 
+    SATMID = as.numeric(SATMID)
+  )
+
+
+
+```
+
+
+
+## Introduction:
+All the students here have come from various backgrounds but still ended up at the University of Wisconsin-Madison. We have decided to find correlations between gender and administration, rate and location, and administration rate to see how these factors affect the chances of  admission at each university in the United States.The questions we have chosen to create an analysis on are as follows. Is there a difference in admission rate between schools in the east coast and west? Is the average proportion of students who are female different than 50%? Is the proportion of female students different between east and west schools? The data collected from institution-level data files on all universities from 1996 - 2021 provides us with the acceptance rate and gender population average of colleges, and lets us investigate the potential impact of location on acceptance rates and gender population in admission decisions. First, we will check if there is a difference in admission rate between schools in the east and west by doing a two-sample t-test to compare the mean admission rate. And finding the 95% confidence interval to see the difference in admission rate. Then, we will check if there is an unequal population of females in East and West Coast schools by doing a one-sample t-test of the average proportion of females at all schools as well as finding its confidence interval. Lastly, we will see if the proportion of female students differs between East and West Coast schools by doing a two-sample t-test of the average female proportion at East vs West Coast schools .
+
+
+
+## Background:
+
+About the Data:
+This data was collected to form Institution-level data files to form aggregate data for each institution. It helped  the U.S department of Education to get a general idea about the various statistics of all of the universities in the United States. This data includes various universities in the U.S, their latitude/longitude("lat", "long") for location, their acceptance rate("adm_rate"), the gender percentage of admission of all admitted students("male", "female").
+
+Source: 
+http://api.data.gov/ed/collegescorecard/
+
+We are splitting the country in half into East coast and West coast based on the longitude of the universities. We found the longitude by roughly estimating the halfway point of the U.S. states so there are approximately 25 states on the West Coast and 25 states on the East Coast. We will look at ethnicity and gender specifically and compare to see how the East Coast and the West Coast schools differentiate between these factors. One unusual factor that could have a major impact on the data is Covid in 2020. This is the case because acceptance rates could be different and many of the other variables could be affected based on this outside factor. Where we are splitting the data to be East Coast or West Coast could also have an impact on the data and the interpretation of the results. This is the case because everyone could have a different interpretation of being on the East Coast or West coast.
+
+## Focus:
+The way our questions are going to be answered is first by splitting our data into West Coast and East Coast by creating a “location” column into our data set. We will then see how the admission rate proportions differ between both coasts. We will dive deeper by solely looking at the female population of each school to see its difference amongst the two coasts. Then we can check if there is truly a difference of female population in schools between the two coasts.
+
+
+
+## Analysis
+```{r}
+q1 = df %>%
+  group_by(location) %>%
+  mutate(adm_rate = as.numeric(adm_rate)) %>%
+  summarize(
+    avg_adm_rate = mean(adm_rate)
+  )
+
+q1
+
+```
+
+> We are calculating the averge admission rate based on East Coast and West Coast, we are doing this by just taking the mean of all of the east coast schools admission rate and the mean of the west coast schools admission rates and comparing the two. 
+
+
+**Q1** Is there a difference in admission rate between schools in the east coast and west?:
+
+```{r}
+ggplot(df, aes(x = location, y = adm_rate)) +
+  geom_boxplot()+
+  geom_point(position = position_jitter(width=0.3, height=0), alpha = 0.1)+
+  xlab("Location")+
+  ylab("Admissions Rate Proportion")+
+  ggtitle("Admission rate Based on the Location")
+```
+> The visual evidence is that there is not a major difference between the mean of the east coast adminstion rate and mean of the west coast adminsintion rate. 
+
+
+# Populations and Sample:
+* The samples are the administration rates that we have in our data.
+* The population is all of the administration rates in the entire united states.
+
+# Model:
+* We have two independent samples
+* Treat the data as randomly sampled from larger populations
+
+$X_i \sim F_1(\mu_1, \sigma_1), \quad i = 1, \ldots, n_1$    
+$Y_i \sim F_2(\mu_2, \sigma_2), \quad i = 1, \ldots, n_2$    
+
+#Estimates 
+```{r}
+confidence = df %>%
+  group_by(location) %>%
+  summarise(n = n(), mean = mean(adm_rate), sd = sd(adm_rate), SE=sd/ sqrt(n))
+confidence
+```
+
+> Find a 95% Condifence interval for $\mu_1 - \mu_2$
+
+```{r}
+west = df %>%
+  filter(location == "West Coast")
+east = df %>%
+  filter(location == "East Coast")
+
+t.test(west$adm_rate, east$adm_rate)
+```
+Interpretation:
+>  We are 95% that the mean of the Administion rate based on the location of west coast schools is between 1.11% and 6.1% greater than the mean administion rate of the east coast schools. 
+
+
+**Q2** Is the average proportion of students who are female different than 50%?
+
+# Hypothesis Test:
+$$
+H_0: p = 0.5 \\
+H_a: p != 0.5
+$$
+
+```{r}
+df_new <- pivot_longer(df, cols = c(male, female), 
+                       names_to = "gender", values_to = "gender_percent")
+
+```
+
+```{r}
+ggplot(df_new, aes(x = gender, y = gender_percent)) +
+  geom_boxplot()+
+  geom_point(position = position_jitter(width=0.3, height=0), alpha = 0.1)+
+  xlab("Gender")+
+  ylab("Gender Proportion")+
+  ggtitle("Proportion of Students Based on the Gender")
+```
+>The visual evidence is that there is a major difference between the mean of the females in universitys throughout the united states and mean of the males in universitys throughout the united states. 
+
+
+# Populations and Sample:
+* The samples are the female and male proportions that we have in our data.
+* The population is all of the males and females proportions in the entire united states.
+
+# Model:
+* We have two independent samples but we will just do one sample, this is the case because if we have a percentage of higher then 50% for the first one we can confer that there is going to be more females then males.
+* Treat the data as randomly sampled from larger populations
+
+$X_i \sim F_1(\mu_1, \sigma_1), \quad i = 1, \ldots, n_1$    ASK BRETTTT
+
+# Estimates 
+```{r}
+conf_gen = df_new %>%
+  group_by(gender) %>%
+  summarise(n = sum(gender_percent), mean = mean(adm_rate*gender_percent), sd = sd(adm_rate*gender_percent), SE=sd/ sqrt(n))
+
+conf_gen
+```
+
+
+> Find a 95% Condifence interval for $\mu_1$
+
+```{r}
+female = df_new %>%
+  filter(gender == "female")
+
+t.test(female$gender_percent)
+
+```
+
+>  We are 95% that the mean of the proportion based on the gender that females is between 56.25245% and 57.74662%. With this information and using the pvalue that is very small and the threshold is 0.05 we can regect the null hypothesis. There is sufficent evidence that the mean of females proportionis not equal to .5 which means there is an unequal amount of males to females. 
+
+
+
+**Q3** Is the proportion of female students different between east and west schools?:
+```{r}
+q3a = df %>%
+  filter(location == "East Coast") %>%
+  summarize(
+    avg_female = mean(female)
+  )
+
+q3b = df %>%
+  filter(location == "West Coast") %>%
+  summarize(
+    avg_female = mean(female)
+  )
+
+q3a = q3a %>%
+  pivot_longer(cols=c('avg_female'),
+                    names_to='gender',
+                    values_to='avg_east_gender')
+
+q3b = q3b %>%
+  pivot_longer(cols=c('avg_female'),
+                    names_to='gender',
+                    values_to='avg_west_gender')
+
+q3 = q3a %>% inner_join(q3b)
+df_long3 <- q3 %>% pivot_longer(cols = c(avg_east_gender, avg_west_gender), names_to = "region", values_to = "avg_gender")
+
+
+
+ggplot(df_long3, aes(x = gender, y = avg_gender, fill = region)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Average Females in Universitys by East Coast vs West Coast", x = "Females", y = "Proportion of Females") 
+
+
+
+```
+
+> The visual evidence is that there is not a major difference between the mean of the females in universitys on the east coast and mean of the feamles in universitys on the west coast. 
+
+# Populations and Sample:
+* The samples are the proportion of females in the university based on location that we have in our data.
+* The population is all of the females in university based on location in the entire united states.
+
+# Model:
+* We have two independent samples
+* Treat the data as randomly sampled from larger populations
+
+$X_i \sim F_1(\mu_1, \sigma_1), \quad i = 1, \ldots, n_1$    
+$Y_i \sim F_2(\mu_2, \sigma_2), \quad i = 1, \ldots, n_2$
+
+
+# Estimates of Females only
+```{r}
+df_fem = df %>%
+  select(female, location)
+
+
+east = df_fem %>%
+  filter(location == "East Coast") %>%
+  select(female)
+
+west = df_fem %>%
+  filter(location == "West Coast") %>%
+  select(female)
+
+
+conf_fem = df_fem %>%
+  group_by(location) %>%
+  summarise(n = sum(female), mean = mean(female), sd = sd(female), SE=sd/ sqrt(n))
+
+conf_fem
+
+```
+
+
+> Find a 95% Condifence interval for $\mu_1 - \mu_2$
+
+```{r}
+
+t.test(east, west, var.equal = TRUE, conf.level = 0.95, conf.int = TRUE)
+```
+
+Interpretation:
+
+> We are 95% confident that the true difference in means between the East and West Coast female population of universities lies between -.6% and 2.5%. Since the confidence interval includes 0 which is the value of no difference, we cannot conclude that there is a difference in proportion of the female students in East vs. West Coast schools. 
+
+
+
+
+
+## Discussion
+ 
+
+
+
+

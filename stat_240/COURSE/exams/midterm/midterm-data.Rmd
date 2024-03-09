@@ -1,0 +1,96 @@
+---
+title: "Spring 2023 Midterm Data"
+author: ""
+output: html_document
+---
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      error = TRUE, fig.height = 4)
+
+library(tidyverse)
+library(kableExtra)
+```
+
+### Midterm Files
+
+For the take-home part of the exam, we recommend putting the data in
+
+`COURSE/data/`
+
+creating directories
+
+`COURSE/exams/` and `COURSE/exams/midterm/`
+
+and putting the take-home R Markdown file in `COURSE/exams/midterm/` when you get it.
+
+### Part 1 (In-person)
+
+The data analysis portion of the midterm is based on the data used in homework 5, Wisconsin obesity and Wisconsin education.
+
+Each problem asks you to interpret the output from the following data analysis of the `obesity` and `education` data sets we studied in class.
+The obesity data set has undergone some transformation from its raw form.
+
+The `obesity` data set includes one row for each `zip/sex/age` combination, a total of 7740 rows, and variables:
+
+- `zip` is a zip code (a 5-digit a categorical variable);
+- `sex` is either "female" or "male";
+- `age` is an age range from "05-17", "18-34", "35-54", "55-74", and "75+";
+- `obese` is the number of sampled individuals who are obese;
+- `n` is the number of sampled individuals;
+- `pop` is the population of individuals in the zip code/sex/age range combination; 
+- `obese_pop` is an estimate of the number of individuals in `pop` who are obese: `obese_pop` contains some missing data; and
+
+The `education` data set has one row for each zip code and variables:
+
+- `zip` as above;
+- `pct_f_bach` which is the percentage of women aged 25 and older with a bachelors degree; and
+- `pct_m_bach` which is the percentage of men aged 25 and older with a bachelors degree
+
+
+
+```{r}
+## this data needs to be transformed to add the obese_pop variable described above
+obesity = read_csv("../../data/obesity.csv")
+
+## this is the data described above
+education = read_csv("../../data/education.csv")
+```
+
+
+
+### Part 2 (Take-home)
+
+#### First few questions
+
+For this first question, we will examine historic atmospheric CO2 and sea level rise data gathered from NOAA.
+
+As the amount of CO2 in the atmosphere rises, increasing glacial melt and surface water temperature has led to unprecedented levels of sea level rise, which is a major environmental and safety concern for coastal cities and populations.
+
+The chunk below loads in the two datasets we will use (`co2_weekly_mlo.txt` and `slr_sla_pac_free_txj1j2_90.csv`) directly from the NOAA data repository and performs some basic data parsing like separating out comments, correcting NA values, and setting column names.
+
+```{r}
+co2 = read_table("https://gml.noaa.gov/webdata/ccgg/trends/co2/co2_weekly_mlo.txt",na="-999.99",comment="#",
+                 col_names=c("year","month","day","year.decimal","ppm","n.days","yr-1-ago","yr-10-ago","increase.1800"))
+sea = read_csv("https://www.star.nesdis.noaa.gov/socd/lsa/SeaLevelRise/slr/slr_sla_pac_keep_txj1j2_90.csv",skip=6,
+               col_names=c("year.decimal","TOPEX.Poseidon","Jason1","Jason2","Jason3"))
+
+head(co2)
+head(sea)
+```
+
+From the `co2` dataset, we mainly care about the `ppm` column, which measure the amount of CO2 in the atmosphere in units of parts per million (i.e. number of CO2 particles in each million particles). From the `sea` dataset, we mainly care about the `TOPEX.Poseidon`, `Jason1`, `Jason2`, and `Jason3` columns, which contains estimated mean sea level height in millimeters as estimated by three different orbiting satellite altimeters.
+
+Each dataset also contains a `year.decimal` column which gives the date in the form of a decimal year, as a fraction of how far into the year that date is.
+
+#### Second set of questions
+
+The data sets `names.csv` has variables `year`, `sex`, `name`, and `frequency` and contains names and counts which appear on US Birth Certificates dating back a long time.
+
+```{r}
+us_names = read_csv("../../data/names.csv")
+```
+
+

@@ -1,0 +1,1175 @@
+---
+title: "Readr, Lubridate, Functions, Iteration"
+author: "Bret Larget"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      error = TRUE, fig.height = 4)
+library(tidyverse)
+library(scales)
+library(lubridate)
+library(XML) ## For reading in HTML files
+## Note: this code assumes viridis.R is two steps up the file directory tree in a `scripts` folder
+source("../../scripts/viridis.R")
+```
+
+These notes include contributions from Professor Jessi Kehe and from Bi Cheng Wu.
+
+## The Airport Case Study
+
+- This week, we work toward data analysis with a collection of data provided by the US Customs and Border Protection Agency which tracks time to clear customs at many US airports.
+- Accessing this data will involve several new concepts.
+    - Reading in data in different formats
+    - More detail on working with dates
+    - Writing functions
+    - Iteration
+- Each of these topics is deep and could involve much time for a thorough description.
+- The approach instead will be to introduce the ideas with the primary aim of accessing the airport data, but with some effort to show some generality beyond what is minimally needed for the airport case study.
+
+### Setup details
+
+Reading:
+
+- [*R4DS* Chapter 11](https://r4ds.had.co.nz/data-import.html) for information on **readr**
+- [*R4DS* Chapter 16](https://r4ds.had.co.nz/dates-and-times.html) for information on **lubridate**
+- [*CNCS* Chapter 10](https://bookdown.org/bret_larget/stat-240-case-studies/airport-waiting-times.html) for background on the airport waiting time data
+
+Packages:
+
+- **tidyverse**
+- **lubridate**
+- **XML**
+
+- Directories:
+  - `COURSE/data/`
+  - `COURSE/lectures/unit4-airport/`
+  - `COURSE/scripts/`
+  
+- Files:
+  - `COURSE/data/MSP-2018.html`
+  - `COURSE/data/DEN-2018.csv`
+  - `COURSE/data/JFK-2018.csv`
+  - `COURSE/data/LAX-2018.csv`
+  - `COURSE/data/MSP-2018.csv`
+  - `COURSE/data/ORD-2018.csv`
+  - `COURSE/data/SFO-2018.csv`
+  - `COURSE/scripts/viridis.R`
+  - `COURSE/lectures/unit4-airport/week4.Rmd`
+  - `COURSE/lectures/unit4-airport/week4.html`
+
+## readr - Importing Data
+
+### Plain text files
+
+- Depending on the format of a data file, different functions are needed to read the data file into and produce a data frame.
+- Many data sets are stored in *plain text* files.
+    - Plain text files typically contain only letters, numbers, and simple punctuation marks, but do not include special characters or formats.
+- A *comma-separated-variable* file, typically with the file extension ".csv",
+is the most common plain text format
+    - The first row contains variable names separated by commas
+    - The comma character `,` is called a *delimiter* and is not part of the data, but is a separator between fields of data
+    - Subsequent rows contain cases with data values separated by commas
+    - The Lake Mendota and Madison weather data sets are examples
+- Sometimes, especially if a `,` character is part of the data to read, files may be stored using a different character as the delimiter.
+- In some countries, a comma is used as the decimal point, so `123,45` may represent the number `123.45`, meaning a different delimiter would be needed to avoid confusion about which commas were part of numbers and which were delimiters.
+  - The command `read_csv2()` is used for semicolon separated files where `,` is the decimal point
+  - The command `read_tsv()` is for tab delimited files
+  - The command `read_delim()` may be used for any delimiter by setting the argument `delim =` to whichever character is the delimiter.
+
+- Another common plain text file format uses *white space*, any combination of *consecutive spaces and tabs* (but not returns) to represent a single delimiter.
+  - Such files may be read with `read_table()`.
+  
+#### Arguments
+
+- All of the **tidyverse** commands to read in data allow for several arguments to modify how data is read from a file.
+- Here are key arguments which are often helpful:
+    - The argument `skip` has a default value `0`, and specifies the number of lines at the beginning of the file to skip before reading the data
+    - The argument `na` has default value `"NA"`, but may be set to a vector of strings which represent missing data.
+    - The argument `comment` has default value `""`, but may be set to a string which represents a comment character. Any characters from the comment character to the end of the line is treated as a comment and is not read as part of the data.
+- The exoplanet data we shared has been pre-cleaned, but reading in the data from the raw data file required either using `skip` or `comment`.    
+
+### Excel files
+
+- It is also common to store data in Excel files.
+- The function `read_excel()` from the **readxl** package may be used to import data from an Excel file.
+- We will see an example of this next week.
+
+### HTML Files
+
+- Data is sometimes included in a table on a web page.
+- Within the **tidyverse**, there is a package **rvest** to scrape data from simple tables in web pages.
+- Unfortunately, if the structure of the table is complicated, such as containing multiple header rows, the basic commands to read in tables of data from an HTML file may not be sufficient (or at least I have not succeeded using them).
+- The airport data we will read for the case study is contained in HTML files in tables with complicated headers which contain multiple rows and merge some columns together in some rows.
+- We will use a function in a non-tidyverse package **XML** to read in the airport data.
+    - Details will follow later.
+
+
+## lubridate - working with dates and times
+
+#### Dates from strings
+
+- The international standard for specifying dates and times works from the longest time units to the shortest.
+  - year, month, day, hour, minute, second
+- **lubridate** has many functions to create dates from strings
+  - The example below uses `mdy()` to read in a date where:
+    - first, the month is parsed
+    - then, the day
+    - finally, the year
+
+```{r date-from-string}
+# Uses the ISO 8601 format where components of a specified date are arranged 
+# from biggest to smallest: year, month, day, hour, minute, second
+date1 = "February 5 2017"
+class(date1)
+
+mdy(date1)
+class(mdy(date1))
+```
+
+- The **lubridate** package has facilities to work with data in both *date* and *date-time* format.
+    - Data in *date* format specifies the year, month, and day.
+    - Data in *date-time* format also includes hours, minutes, and seconds.
+- These notes only describe working with *date* valued data.
+- If you need to work with *date-time* data, please see another reference.
+
+#### More examples
+
+- There are functions for reading a date from a string with all of the possible orders of this information.
+  - `dmy()`, `dym()`, `mdy()`, `myd()`, `ydm()`, and `ymd()`.
+
+```{r date-from-string-examples}
+date2 = "5-2-2017"
+date3 = "2017, February 5"
+date4 = "Feb. 5, 2017"
+date5 = "02/05/2017"
+date6 = "2.2017.5"
+```
+
+- `date2` could be read as two separate dates, either May 2, 2017 or February 5, 2017.
+
+```{r date-from-string-examples2}
+date2
+dmy(date2)
+mdy(date2) # changed month and day
+```
+
+- Months can be written out with a word, abbreviation, or number.
+- Punctuation does not matter
+
+```{r date-from-string-examples3}
+##
+date3
+ymd(date3)
+##
+date4
+mdy(date4)
+##
+date5
+mdy(date5)
+##
+date6
+myd(date6)
+```
+
+#### Components of dates
+
+- We can extract components of dates from a date-valued object.
+
+```{r date-components}
+test_date = mdy(date1)
+test_date
+```
+
+- The function `year()` extracts the year.
+
+```{r}
+year(test_date)
+```
+
+- The function `month()` extracts the month. See variations if you want the number, an abbreviation of the month, or the full name.
+
+```{r}
+test_date
+month(test_date)
+month(test_date, label=TRUE)
+month(test_date, label=TRUE, abbr=FALSE)
+```
+
+- `day()` extacts the day of the month
+
+```{r}
+test_date
+day(test_date) # day of the month
+```
+
+- `wday()` extracts the day of the week.
+  - note that Sunday is `1`
+  - just like `month()`, you can get an abbreviated day of the week or the full day
+  
+```{r}
+test_date
+wday(test_date) # day of the week
+wday(test_date, label=TRUE)
+wday(test_date, label=TRUE, abbr=FALSE)
+```
+
+- The function `yday()` gets the day of the year.
+- The value is different in the months March and later in leap years compared to non-leap years.
+
+```{r}
+# a leap year
+march_01_2020 = ymd("2020-03-01")
+march_01_2020
+yday(march_01_2020)
+
+# not a leap year
+march_01_2022 = ymd("2022-03-01")
+march_01_2022
+yday(march_01_2022)
+```
+
+## Functions
+
+- The airport data is contained in several different HTML files.
+- The code to read the data in from a single file is somewhat complex.
+- Instead of copying and pasting the same code to use multiple times with different input values, it is better practice to *write a function* with this complex code that may then be used repeatedly to read in the data from each separate file.
+- Before showing the function to read the airport data, we show a brief introduction to writing functions in R.
+
+- See Chapter 19 in *R4DS* for more information on writing base R functions.
+
+### A Simple Example
+
+- Here is a very simple example of a function which returns the negative square root of the input.
+
+```{r}
+## define the function
+f = function(x)
+{
+  value = -sqrt(x)
+  value
+}
+```
+
+### Key Elements
+
+- Note the key elements:
+    - A name
+        - Here we used `f`. In general, you want an informative name that says what the function does
+    - Assignment
+    - The key word `function`
+    - A set of parentheses `(` and `)`
+    - Optionally, one or more arguments inside the parentheses
+    - A set of braces `{` and `}`
+        - These are optional if the function has only one statement, but it is generally good practice to always use them for code clarity
+    - By default, R returns the last object stated
+    - While not required, I like to use an explicit `return()` with the return value inside the parentheses.
+    
+```{r}
+## redefine f
+f = function(x)
+{
+  value = -sqrt(x)
+  
+  return ( value )
+}
+```
+
+- Note that when you execute the code to create the function, it appears in your environment
+    
+### Execute the Functions
+
+Now let's run it with various input values.
+
+- A single positive number
+
+```{r}
+## A single positive number
+f(4)
+```
+
+- A vector of positive numbers
+
+```{r}
+## A vector of positive numbers
+f(1:5)
+```
+
+- A negative value
+
+```{r}
+## A negative number
+## Runs, put produces a warning
+## Return value is `NaN`, not a number
+f(-4)
+```
+
+- Character value input
+- Note that `LETTERS[1:3]` is the first three capital letters, `r LETTERS[1:3]`
+
+```{r}
+## A character-valued vector
+## This produces an error
+LETTERS[1:3]
+f(LETTERS[1:3])
+```
+
+### Choosing Names
+
+- While allowed, it is bad practice to use the name of an existing function as your function name.
+- The reason this is bad is that in R's precedence rules, any object names defined in your environment have highest priority.
+- So, for example, if you created a function named `sum()`, then your `sum()` function will be given higher priority than the base R function `sum()`, which will likely lead to unexpected and undesired results.
+
+### Arguments
+
+- Our example function had one argument, `x`
+
+```{r}
+f
+```
+
+- If we want to define a function with more than one argument, then give each argument a name and separate by commas
+- Here is a function that takes two numerical inputs, calculates the mean of each, and returns the difference
+
+```{r}
+mean_difference = function(x, y)
+{
+  return ( mean(x) - mean(y) )
+}
+```
+
+### Test it
+
+- Two individual values
+
+```{r}
+## Two values
+mean_difference(2, 4)
+```
+
+- Two vectors
+
+```{r}
+## Two numerical vectors
+mean_difference(0:10, 20:40)
+```
+
+- Calling arguments in a different order
+
+```{r}
+## Calling by name
+## Notice the order can change
+mean_difference(y = 0:10, x = 20:40)
+```
+
+- But it is an error if only one argument is passed in
+
+```{r}
+## An error
+mean_difference(1:10)
+
+## Another error
+mean_difference(y = 20:40)
+```
+
+### Default Values
+
+- We can set the default values of a function in its definition
+    - Set the argument to be equal to its default value
+    - The default value is used when called unless an alternative is passed in
+    
+```{r}
+## redefine mean_difference
+mean_difference = function(x, y=0)
+{
+  return ( mean(x) - mean(y) )
+}
+```
+
+- We get the same results as previously when passing in two arguments
+
+```{r}
+mean_difference(0:10, 20:40)
+```
+
+- But we can also pass in a single argument, read to be `x`
+
+```{r}
+mean_difference(0:10)
+```
+
+- However, if we call with only `y`, it is an error as `x` has no default value
+
+```{r}
+## Causes an error
+mean_difference(y = 0:10)
+```
+
+### Local Variables
+
+- Variables created in a function are *local*
+- Their scope is only within the function
+- A copy of the variables created within do not persist in the environment
+- This function creates a new variables named `n`, but it does not persist outside of the function
+
+```{r}
+## function to append the length of the vector to the vector
+## neither the input x nor the new variables n or y exist outside the function
+g = function(x)
+{
+  n = length(x)
+  y = c(x, n)
+  ## cat() writes to the console
+  ## "\n" is the newline character
+  cat("y: ", y, "\n")
+  cat("n: ", n, "\n")
+  return ( y )
+}
+```
+
+- Here, we show that the objects, `x`, `y`, and `n` which are created inside of `g` do not get saved in the environment.
+- Note that there is a function `n()` defined in **dplyr**. Defining and using `n` inside the function does not cause trouble in using `n()` later outside this function.
+
+```{r}
+g(1:5)
+
+x
+y
+n
+```
+
+
+
+
+
+  
+## Airport Overview
+
+- The analysis involves reading in international arrival data from several international airports in the US.
+- The data is collected by the US Customs and Border Control.
+- Details about the data are described in [Chapter 11 of Course Notes and Case Studies](https://bookdown.org/bret_larget/stat-240-case-studies/airport-waiting-times.html).
+- Downloaded data is as an HTML file for each airport with a single table that is complicated by using three rows for a header and some fields which span multiple columns.
+- There is a package in the tidyverse called **rvest** which can read in data from many HTML files, but it does not handle well this example due to the complicated header structure.
+- Instead, we will use the package **XML** and a command `readHTMLTable()` for one of the files.
+  - We will illustrate using `readHTMLTable()` for data from a single airport and a single HTML file, and then write the results to the more typical CSV file for one example.
+  - For other airports, we will begin from the already cleaned CSV files.
+  
+### Example File
+
+- When viewed in a browser, the start of the airport waiting time data for the Minneapolis-St. Paul (MSP) airport looks like this.
+
+![](msp-image.png)
+
+-   Notice that the information about the variables is in the first three lines of information, and not just in a single row.
+-   In addition, some of the header rows spread information over several columns.
+-   These complications defeat reading in the data with a simple single call to a function
+-   The file is an HTML file, which is a plain text file in a specific markup language.
+    - Here is what the start of this file looks like in its raw format.
+
+```
+<div id="resultsContainer95"><style>table thead tr th {background-color: #003366;color: white;}table, th, td {border: 1px solid white;}table {border-collapse: collapse;}</style><table style="width: 100%;" summary="This table contains the results of wait times for passengers for a given time frame based on airport/terminal"><thead><tr><th colspan="1" rowspan="3">Airport</th><th colspan="1" rowspan="3">Terminal</th><th colspan="1" rowspan="3">Date</th><th colspan="1" rowspan="3">Hour</th><th colspan="2" rowspan="2">U.S. Citizen</th><th colspan="2" rowspan="2">Non U.S. Citizen</th><th colspan="13" style="border: none;">All</th></tr><tr><th colspan="2" style="">Wait Times</th><th colspan="7" style="border-top: none;">Number Of Passengers Time Interval</th><th colspan="4" style="border-top: none;"></th></tr><tr><th>Average Wait<br>Time </th><th>Max Wait<br>Time</th><th>Average Wait<br>Time</th><th>Max Wait<br>Time</th><th>Average Wait<br>Time</th><th>Max Wait<br>Time</th><th>0-15</th><th>16-30</th><th>31-45</th><th>46-60 </th><th>61-90 </th><th>91-120 </th><th>120 plus </th><th>Excluded </th><th>Total </th><th>Flights </th><th>Booths </th></tr></thead><tr class="even"><td style="text-align: center" headers="airport">MSP</td><td style="text-align: center" headers="terminal">Terminal 1Lindbergh</td><td style="text-align: center" headers="Date">1/1/2018</td><td style="text-align: center" headers="hour">0800 - 0900</td><td style="text-align: center" headers="airport">6</td><td style="text-align: center" headers="terminal">12</td><td style="text-align: center" headers="Date">6</td><td style="text-align: center" headers="hour">22</td><td style="text-align: center" headers="WaitTime avg">6</td><td style="text-align: center" headers="WaitTime max">22</td><td style="text-align: center" headers="NumberPassengers 0-15">62</td><td style="text-align: center" headers="NumberPassengers 16-30">3</td><td style="text-align: center" headers="NumberPassengers 31-45">0</td><td style="text-align: center" headers="NumberPassengers 46-60">0</td><td style="text-align: center" headers="NumberPassengers 61-90">0</td><td style="text-align: center" headers="NumberPassengers 91-120">0</td><td style="text-align: center" headers="NumberPassengers 121Plus">0</td><td style="text-align: center" headers="Excluded">2</td><td style="text-align: center" headers="Total">67</td><td style="text-align: center" headers="Flights">1</td><td style="text-align: center" headers="Booths">2</td></tr><tr class="odd">
+```
+
+- You can see the difference between a "mark up" language like HTML and a "mark down" language like R Markdown we use in our .Rmd files.
+  - The former is readable by a person, but you would never want to write a file like this by typing.
+  - A "mark down" file is easier to type by hand, but offers much less control over the formatting.
+  
+### Data
+
+- Each data file contains hourly information over an entire year about the number of arriving international flights, numbers of passengers on these flights, an indication if the arriving passengers go through US or international customs, and various measures of the time it takes to clear customs.
+- We will explore the data more thoroughly after examining code to read it in.
+  
+### Importing the HTML data files
+
+- The function `readHTMLTable()` in the `XML` package can read in tables from HTML files.
+- However, it expects tables to have a single header row.
+- When they do not, such as in this example, it takes more care and several steps.
+-  The function code below does a number of things to read in the data:
+  1. Grab part of a list as the data
+  2. Use `slice()` to get rid of the three header lines
+  3. Add new column names
+  4. All variables will be character valued. Change this using:
+    - `mutate()` with `across()` to select change the types of multiple variables with a single command.
+- Comments in the code chunk provide a brief description of what each part of the code does and why.
+
+```{r read-html-airport-files}
+## Input:  x = HTML file
+## Output: nicely formatted tibble
+
+read_airport =  function(filename)
+{
+  ## Create a vector of the desired variable names
+  ## The structure of the variable names is complicated
+  ## We will skip the actual header lines in the file and use these names as a replacement
+  
+  ## We skip the three rows with complex column names
+  ## This is the vector of column names we will actually use
+  airport_column_names = c("airport",
+                           "terminal",
+                           "date",
+                           "hour",
+                           "us_avg_wait",
+                           "us_max_wait",
+                           "non_us_avg_wait",
+                           "non_us_max_wait",
+                           "all_avg_wait",
+                           "all_max_wait",
+                           "all_n_0_15",
+                           "all_n_16_30",
+                           "all_n_31_45",
+                           "all_n_46_60",
+                           "all_n_61_90",
+                           "all_n_91_120",
+                           "all_n_120_plus",
+                           "all_excluded",
+                           "all_total",
+                           "all_flights",
+                           "all_booths")
+
+  ## The readHTMLTable() command creates a list with a single element
+  ##   named `NULL` which contains the actual table of data
+  ## Here, the $ operator extracts the data frame NULL from the list
+  ## Then, slice() removes the first three rows
+  ## Here, the table has generic variable names, V1, ..., V21
+  airport = readHTMLTable(filename)$`NULL` %>%
+    slice(-(1:3))
+
+  ## This command changes the names of the variables to those specified above
+  names(airport) = airport_column_names
+
+  ## Now, turn the base R data frame into a tidyverse tibble and change the types of classes of variables
+  
+  airport = airport %>%
+    ## change the base R data frame into a tibble() (the tidyverse data frame)
+    as_tibble() %>%
+    ## Apply the function as.numeric() to all columns
+    ##   where the name ends with "wait" or starts with "all"
+    ## This converts these character columns into numerical columns
+    mutate(across(ends_with("wait") | starts_with("all"), as.numeric)) %>% 
+    ## Apply the function as.character() to all functions of type factor
+    ## In base R, character vectors are converted to factors
+    ## While factors may take less space to store, the factor structure is most useful when using categorical variables in a statistical model, which we will not be doing with this data
+    mutate(across(where(is.factor), as.character)) %>% 
+    ## Change the date variable from character-valued to date-valued
+    mutate(date = mdy(date))
+  
+  return( airport )
+}
+```
+
+### Reading in an HTML Table
+
+```{r}
+msp = read_airport("../../data/MSP-2018.html")
+str(msp)
+```
+
+
+
+### across() and where()
+
+- The part of the function which uses `readHTMLTable()` to read the data to a list and then extract the data from from this list object is not part of the tidyverse and is somewhat idiosyncratic to this specific data reading task.
+  - **You will not be expected to write code like this yourself.**
+- Other commands such as `slice()` and `mutate()` we have seen last week.
+- However, the commands `across()` AND `where()` deserve more explanation.
+
+### across()
+
+- We almost always use `across()` as an argument within `mutate()` or `summarize()`
+- The basic idea of `across()` is to:
+  - select a number of columns with the first argument
+  - provide a function (or more than one) as the second argument
+  - apply the function(s) to each selected column
+- In the simplest case using `across()` within `mutate()`, the columns are replaced by their new values and retain the same names
+- We can also use `across()` within `summarize()` when we want to create a summary by applying the same function to a selection of columns without needing to list them each individually
+
+- The first argument of `across()` handles all the usual **tidyverse** ways to select columns:
+  - a collection of names inside of `c()`, such as `c("us_avg_wait","us_max_wait")`
+  - a numerical sequence, such as `5:6` to select columns by position
+  - helper functions, such as `begins_with("us")`
+- You may use the standard vector operations `|` (or) and `&` (and) to combine conditions or `!` to negate something
+
+- The second argument is the name of the function, without the `()` after.
+  - We are passing the function itself, and not the return value of the function
+  
+#### where()  
+
+- The helper function `where()` is used as first argument of `across()` when we want to use base R functions that return `TRUE` or `FALSE` where we would otherwise use **tidyverse** functions.
+- We use `where(is.factor)` inside of `across()` to select all columns where `is.factor()` applied to the column is TRUE.
+
+### Writing data files
+
+- After reading in each HTML file and modified the table, we can use `write_csv()` to write the data into a file which we can read in later using `read_csv()` as we are accustomed to doing.
+- Here is example code to write the MSP data to a file
+
+```{r, eval = FALSE}
+## Do not evaluate this code!
+write_csv(msp, "../../data/MSP-2018.csv")
+```
+
+- We have done this step for you for each of the six airports we will examine
+
+## Airports
+
+- We will look at international flight arrival data from 2018 from six US Airports
+  - DEN (Denver)
+  - JFK (New York)
+  - LAX (Los Angeles)
+  - MSP (Minneapolis and St. Paul)
+  - ORD (Chicago, O'Hare)
+  - SFO (San Francisco)
+  
+## Reading the Data
+
+- We can now read in the data from six different airports and combine into a single data set
+- Here, we do this with one line for each data set and then use `bind_rows()` to combine them.
+- Then, we can delete the temporary files
+
+```{r read-csv, eval = FALSE}
+## do not run this!
+den = read_csv("../../data/DEN-2018.csv")
+jfk = read_csv("../../data/JFK-2018.csv")
+lax = read_csv("../../data/LAX-2018.csv")
+msp = read_csv("../../data/MSP-2018.csv")
+ord = read_csv("../../data/ORD-2018.csv")
+sfo = read_csv("../../data/SFO-2018.csv")
+
+awt = bind_rows(den, jfk, lax, msp, ord, sfo)
+
+rm(den, jfk, lax, msp, ord, sfo)
+```
+
+### Reading the data with purrr
+
+- The previous chunk of code is simple to read and understand, but would be painful if there were many more files we wished to read and combine.
+- This next block of code uses the `map_dfr()` function from the **purrr** package, one of the fundamental **tidyverse** packages for iteration, to read the data and combine into one object in a single step
+- We will occassionaly show examples of **purrr** code, but will not test you on this package or expect you to write your own examples.
+
+```{r}
+airport_codes = c("DEN", "JFK", "LAX", "MSP", "ORD", "SFO")
+
+awt = map_dfr(airport_codes, ~{
+  filename = str_c("../../data/", .x, "-2018.csv")
+  return( read_csv(filename) )
+})
+```
+
+- Here is a brief explanation of how the previous code chunk worked.
+- The command `map_dfr()` iterates over the elements of the first argument (here, the string vector with the 3-letter airport codes), and executes the function in the second argument for each.
+- The return value of the function is a data frame where each iteration through the elements adds new rows to the data frame which is created
+    - The `_dfr` suffix of `map_dfr()` means return a data frame (the `df` of `dfr`) created by binding together rows(the `r` of `dfr`).
+- Here, the function to be executed is an example of a *lambda* function, or an *anonymous* function.
+    - The anonymous function is created and used in place, but is not named or saved
+    - It is defined after the tilde symbol `~` and within the braces `{` and `}`
+  - The lambda function here takes a single argument `.x`, which is one of the elements of the first argument
+  - The first time the function is executed, `.x = "DEN"`, and so on.
+- The function first uses the **stringr** function `str_c()` to combine together strings in common to all file names with the part that changes.
+  - The first `filename` value is "../../data/DEN-2018.csv"
+- Then, the function uses `read_csv()` on this file name and returns the data frame it read in.
+- `map_dfr()` combines the rows of each data frame into a single large data frame with the data from all six airports.
+
+## Airport Waiting Time Data Analysis
+
+- Next, we move to a partial analysis of the airport waiting time data
+
+### Exploratory Data Analysis
+
+- The next several blocks of code to explore the data and do some data checking for consistency.
+- **If short on time, skip this exploratory data analysis and move ahead to answering questions**
+
+> Is there any missing data?
+
+- In the next chunk, we create a function that counts the number of missing values in a vector
+- We then use `across()` inside of `summarize()` to count the missing data in each variable.
+- The first argument to `across()` is a **dplyr** column selector.
+  - Here we use `everything()` to select all columns.
+
+```{r missing-data}
+count_na = function(x)
+{
+  return ( sum(is.na(x) ) )
+}
+
+awt %>%
+  summarize(across(everything(), count_na)) %>% 
+  print(width = Inf)
+```
+
+> There are no missing values for any variables.
+
+
+### Summarize Key Variables
+
+> How many passengers and flights are there at each airport/terminal combination? Create a table with these summary statitics. Add a column `total_airport_passengers` which includes the total number of passengers in the corresponding airport across all terminals. *(Note: this column will repeat values for airports with multiple terminals.)* Arrange the table by descending order of this total airport passengers variable and then descending by total passengers per terminal. Then delete the `total_airport_passengers` column before printing the table.
+
+#### Prepared Solution
+
+```{r key-variables-airport-passengers-flights}
+## airports and terminals
+awt %>%
+  group_by(airport, terminal) %>%
+  summarize(passengers = sum(all_total),
+            flights = sum(all_flights)) %>% 
+  group_by(airport) %>% 
+  mutate(total_airport_passengers = sum(passengers)) %>% 
+  arrange(desc(total_airport_passengers), desc(passengers)) %>% 
+  select(-total_airport_passengers)
+
+### JFK and LAX have five different international terminals
+### The other airports have one or two each.
+```
+
+> How many days of data are there for each airport?
+
+#### Prepared Solution
+
+```{r key-variables-airport-dates}
+## examine date by airport
+awt %>%
+  select(airport, date) %>%
+  distinct() %>%
+  count(airport)
+## One date is missing for all the airports
+```
+
+- One day is missing for each airport!  Can we figure out which one it is?
+- One approach could be to narrow down by:
+    - adding a month variable
+    - counting the number of distinct days within each month
+    - seeing which total is less than the actual number of days
+    - find the distinct days within that month
+- But a more straightforward way as we did with the Madison weather data is to:
+    - create a mini data frame with all possible dates
+    - join with a data summary of the dates and terminals in the data set
+    - see what is missing
+
+> Find which date is missing for each data set
+
+
+#### Prepared Solution
+
+- Here we introduce a handy function `expand_grid()` from **tidyr** which we will study next week
+- Here, we create a temporary data set with one row for each date and airport combination
+
+```{r}
+## Create a mini temporary data set with all dates in 2018 for each airport code
+temp1 = expand_grid(
+  date = seq(ymd("2018-01-01"), ymd("2018-12-31"), 1),
+  airport = airport_codes)
+
+## Create another temporary data set with the actual dates and airports in awt
+
+temp2 = awt %>% 
+  select(airport, date) %>% 
+  distinct()
+
+## Use anti_join() to find rows in temp1 not in temp2
+temp1 %>% 
+  anti_join(temp2)
+```
+
+- We see that May 8, 2018, is missing from each airport. Curious!
+- Verify this
+
+```{r}
+## check on May 8
+awt %>%
+  filter(date == "2018-05-08") %>%
+  count()
+
+### No airports have any data on May 8, 2018.
+```
+
+> Does the `all_total` variable match the sum of the other columns of passenger counts?
+
+
+
+#### Prepared Solution
+
+- Add a column named `check_total` with the sum of the columns which names begin with "all" except for `all_total`
+- Compare these totals with that in `all_total`
+
+```{r key-variables-all_total}
+## check that all_total column matches
+awt = awt %>%
+  mutate(check_total = all_n_0_15 +
+            all_n_16_30 +
+            all_n_31_45 +
+            all_n_46_60 +
+            all_n_61_90 +
+            all_n_91_120 +
+            all_n_120_plus +
+            all_excluded)
+
+awt %>%
+  summarize(diff = sum(all_total != check_total))
+
+table_mismatch = awt %>%
+  filter(all_total != check_total)
+table_mismatch
+```
+
+- There are 44 rows where the totals do not match
+
+>  At what time of day and at which airports are these mismatches happening?
+
+
+#### Prepared Solution
+
+```{r key-variables-all_total-times}
+table_mismatch %>%
+  count(airport, hour)
+### All mismatches are between midnight and 1am.
+### Most are at LAX and JFK
+```
+
+> Create a histogram to show the distribution of the size of these mismatches.
+
+
+
+
+#### Prepared Solution
+
+```{r key-variables-all_total-mismatch-graphic}
+ggplot(table_mismatch, aes(x = all_total - check_total)) +
+  geom_histogram(boundary=0, binwidth=5, fill = "red", color = "black")
+```
+
+- In each of the 44 cases where there is a mismatch, the `all_total` variable exceeds the `check_total`
+- This likely means that some of the passengers in the `all_total` column are not included in the specific waiting time counts of passengers.
+- Most of the differences are fewer than five passengers
+- The largest difference is somewhere between 30 and 35
+
+
+#### Summary of findings
+
+- The data do not contain any observations on May 8, 2018.
+
+- The `all_total` variable has a few discrepancies where counts differ occasionally when a flight arrival was near midnight.
+- Ignoring the issue is not likely to make much difference for major questions.
+
+
+## Questions
+
+1. Are some months busier than others?  
+    - Are some days of the week busier than others?  
+    - Are some times during the day busier than others?  
+    
+2. Are some airports more efficient that than others in terms of average wait time?  
+
+3. Are some airports more efficient in the number of people served by hour per available booth?
+
+
+## Busy times
+
+> Are some months busier than others?
+
+- Begin by adding a month variable and then reordering the columns
+- Also add day and weekday for future use
+- Note the use of `relocate()` with `.after`
+
+```{r}
+awt = awt %>% 
+  mutate(month = month(date, label = TRUE),
+         day = day(date),
+         wday = wday(date, label = TRUE)) %>% 
+  relocate(month, day, wday, .after = hour)
+```
+
+
+- Count the total number of passengers by month and sort.
+
+```{r months}
+awt %>%
+  group_by(month) %>%
+  summarize(total = sum(all_total)) %>%
+  arrange(desc(total))
+```
+
+- The previous summary is affected by different numbers of days in each month.
+    - A better solution calculates an average number of daily passengers separately for each month
+- Calculate the average daily rate of passengers by month.
+- (Recall that May has only 30 observations.)
+
+- Key idea here is to:
+    - first summarize by date (and month and day):
+    - sum to get daily totals across airport, hours, and terminal
+    - then group by month
+    - calculate means within the month
+
+```{r busy-months}
+busy_months = awt %>%
+  group_by(date, month, day) %>%
+  summarize(total = sum(all_total)) %>%
+  group_by(month) %>%
+  summarize(n = n(), total = sum(total), daily = total/n) %>%
+  arrange(desc(daily))
+
+busy_months
+```
+
+
+```{r}
+ggplot(busy_months, aes(x=month, y=daily)) +
+  geom_col(fill = "blue", color = "black") +
+  scale_y_continuous(labels = scales::comma) +
+  xlab("") +
+  ylab("# Daily Arrivals") +
+  ggtitle("Daily International Arrival Totals", subtitle = "at six selected US Airports")
+```
+
+- It looks like the summer months (July, August, June) are the busiest in terms of number of passengers traveling per day for the airports in our data.
+
+
+> Are some days of the week busier than others?  
+
+```{r busy-weekdays}
+# We first need to count the number of each day of the week in 2018
+busy_wdays = awt %>%
+  group_by(date, wday) %>%
+  summarize(total = sum(all_total)) %>%
+  group_by(wday) %>%
+  summarize(n=n(), total = sum(total))  %>%
+  mutate(daily=round(total/n,2)) %>%
+  arrange(desc(daily)) 
+busy_wdays
+
+ggplot(busy_wdays, aes(x = wday, y = daily)) +
+  geom_col(fill = "blue", color = "black") +
+  scale_y_continuous(labels = scales::comma) +
+  xlab("Day of the week") +
+  ylab("Average number of passengers") +
+  ggtitle("Are some days of the week busier than others?")
+```
+
+> Are some times during the day busier than others?  
+
+```{r busy-times}
+busy_times = awt %>%
+  group_by(date, hour) %>%
+  summarize(total = sum(all_total)) %>%
+  group_by(hour) %>%
+  summarize(n = n(), total = sum(total))  %>%
+  mutate(hourly = round(total/n,2)) %>%
+  arrange(desc(hourly)) 
+busy_times
+
+ggplot(busy_times, aes(x = hour, y = hourly)) +
+  geom_col(fill = "blue", col = "black") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))  +
+  xlab("Time of the day") +
+  ylab("# of passengers") +
+  ggtitle("Average Hourly International Arrivals", subtitle = "at six select US airports")
+
+```
+
+
+## Airport efficiency
+
+> Are some airports more efficient than others in terms of average wait time?
+
+```{r efficient}
+ggplot(awt, aes(x=airport, y=all_avg_wait)) +
+  geom_boxplot()
+```
+
+- We can adjust the plot by reordering the airports in order by the median of their average waiting time for all passengers.
+- We also add better axis labels
+
+
+```{r}
+awt = awt %>% 
+  mutate(airport = reorder(airport, all_avg_wait, FUN=median))
+## treat airport as a factor with levels ordered according to the median of the all_avg_wait variable
+
+ggplot(awt, aes(x=airport, y=all_avg_wait)) +
+  geom_boxplot() +
+  xlab("Airport") +
+  ylab("Average waiting time for all passengers") +
+  ggtitle("Are some airports more efficient that than others in terms of average wait time?")
+```
+
+- Passengers tend to wait longer on average at San Francisco's airport than the others in this analysis.
+
+> Factors affecting waiting times
+
+- There are may possible explanations for differences in average waiting times
+- One reason why waiting times could be longer at some airports is if there are fewer booths open at times when many passengers are arriving
+- Another reason may simply be the number of passengers arriving at the same time
+  - Airports with fewer passengers may be able to accommodate them more quickly than large airports
+- Other possibilities include the time of day or day of the week.
+
+We explore some of these questions below
+
+> Do airports differ in the number of passengers processed per booth?
+
+- To address this question, calculate for each row of the data, the ratio of the number of passengers per booth and add this value as a new column in the data set
+- Create a numerical summary of these values for each airport with these values:
+  - The minimum, median, mean, and maximum
+- Print all rows and columns of the table, sorted in descending order of the median
+
+
+#### Prepared Solution
+
+```{r}
+awt = awt %>% 
+  mutate(passengers_per_booth = all_total / all_booths)
+
+prob_1 = awt %>% 
+  filter(all_booths > 0) %>% 
+  group_by(airport) %>% 
+  summarize(min = min(passengers_per_booth),
+            median = median(passengers_per_booth),
+            max = max(passengers_per_booth))
+
+prob_1 %>% 
+  arrange(desc(median)) %>% 
+  print(n = Inf, width = Inf)
+```
+
+- MSP has the largest number of passengers per booth
+  - The previous graph showed MSP also had the shortest distribution of waiting times.
+
+> Display the median values in a bar graph
+
+
+#### Prepared Solution
+
+```{r}
+ggplot(prob_1, aes(x = airport, y = median)) +
+  geom_col() +
+  xlab("Airport") +
+  ylab("Passengers per Booth") +
+  ggtitle("Comparison of Median Passengers per Booth",
+          subtitle = "International arrivals for six US Airports")
+```
+
+> What is the average waiting time at each airport for all passengers?
+
+- To calculate this statistic, we need to sum the waiting times for all passengers and divided by the total number of passengers
+- Note that it is incorrect to calculate the average for each airport/terminal/date/hour and then average these values as the number of passengers in each row is different.
+  - We want to average by passenger, not by row in the data set
+- The strategy is to calculate the total time by all passengers in each row
+  - This is the average time multiplied by the number of passengers
+- Then, sum times and passengers by airport and divide
+
+
+
+#### Prepared Solution
+
+```{r}
+awt = awt %>% 
+  mutate(total_time = all_total * all_avg_wait)
+
+prob_2 = awt %>% 
+  group_by(airport) %>% 
+  summarize(avg_wait = sum(total_time) / sum(all_total))
+
+prob_2 %>% 
+  arrange(avg_wait)
+```
+
+- Looks like San Francisco is slower than the other airports
+
+> Are some airports more efficient in the number of people served by hour per available booth?
+
+- There are a number of ways to consider calculating a statistic which can be interpreted in this way
+- As an example, consider an airport terminal where at one specific hour, there are 400 passengers and and average waiting time of 20 minutes and that there were 10 booths open
+- If 400 passengers wait an average of 20 minutes, this means that the rate at which passengers are being processed is 400 passengers per 20 minutes, or 1200 passengers per hour
+$$
+\frac{400 \text{ passengers }}{20 \text{ minutes }} \times \frac{60 \text{ minutes }}{\text{hour}} = 1200 \text{ passengers / hour}
+$$
+- Spreading this rate across 10 booths, we see that each booth is processing an average of 120 passengers per hour.
+- So, we can calculate a booth rate for each row of the data set by calculating
+$$
+\frac{60 \times \text{ # of passengers }}{\text{ average wait time} \times \text{ # of booths }}
+$$
+
+- However, there are some rows in the data where the number of booths is recorded as zero.
+
+
+```{r}
+awt %>% 
+  filter(all_booths == 0) %>% 
+  nrow()
+```
+
+- Also, some booth rates may be misleading when the total number of passengers that hour is small
+    - We are primarily interested in calculating the efficiency during times when there are more than just a few arrivals.
+    - Somewhat arbitrarily, we focus on hours with at least 100 arrivals, which is about the 10th percentile across all terminal/hours in the data set.
+    
+```{r}
+awt %>%
+  summarize(q10 = quantile(all_total, 0.10))
+```
+
+#### Strategy for the calculation of efficiency
+
+- Filter out hours with no booths or fewer than 100 arrivals
+- Calculate a booth rate for each hour and add a column to the data set
+- We can summarize this data in multiple ways:
+    - To calculate an average booth rate per hour/terminal, summarize this variable directly.
+    - To calculate an average booth rate per booth, we need to take weighted averages by the number of booths.
+- We do both calculations
+
+#### Average efficiency for airports by hour
+
+> During times with at least 100 arrivals per hour, what is the average hourly rate of number of passengers served by each booth at various airports?
+
+
+#### Prepared Solution
+
+- Calculate the booth rates before filtering
+
+```{r}
+awt = awt %>% 
+  mutate(booth_rate = 60 * all_total / (all_avg_wait * all_booths))
+
+prob3 = awt %>% 
+   filter(all_booths > 0 & all_avg_wait > 0 & all_total > 99)
+```
+
+- Here, we show average booth rate averaged over hours/terminals
+
+```{r}
+prob_3a = prob3 %>%
+  group_by(airport) %>%
+  summarize(avg_booth_rate = mean(booth_rate),
+            numerator = sum(booth_rate),
+            denominator = n())
+
+prob_3a %>% 
+  arrange(desc(avg_booth_rate))
+
+ggplot(prob_3a, aes(x = airport, y = avg_booth_rate)) +
+  geom_col(color = "black", fill = "blue") +
+  xlab("Airport") +
+  ylab("Avg #Arrivals per Booth") +
+  ggtitle("Average number of arrivals per booth at 6 selected US airports",
+          subtitle = "averaged over hour/terminal")
+```
+
+
+- Next, show averaged by booth
+
+```{r}
+prob_3b = prob3 %>%
+  group_by(airport) %>%
+  summarize(numerator = sum(booth_rate * all_booths),
+            denominator = sum(all_booths),
+            avg_booth_rate = numerator/denominator) %>% 
+  relocate(avg_booth_rate, .before = numerator)
+
+prob_3b %>% 
+  arrange(desc(avg_booth_rate))
+
+ggplot(prob_3b, aes(x = airport, y = avg_booth_rate)) +
+  geom_col(color = "black", fill = "blue") +
+  xlab("Airport") +
+  ylab("Avg #Arrivals per Booth") +
+  ggtitle("Average number of arrivals per booth at 6 selected US airports",
+          subtitle = "averaged over booths")
+```
+
+- Regardless of how this data is analyzed, in 2018, San Francisco was far less efficient than other selected airports in the time per booth to process international arrivals at customs

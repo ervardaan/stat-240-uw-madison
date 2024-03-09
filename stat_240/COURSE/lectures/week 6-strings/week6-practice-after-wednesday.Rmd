@@ -1,0 +1,81 @@
+---
+title: "Wordle, Strings, and Regular Expressions"
+author: "Bret Larget"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      error = TRUE, fig.height = 4)
+
+library(tidyverse)
+library(kableExtra)
+```
+
+
+### Read in the Wordle Data
+
+```{r}
+wrdl_data = read_csv("../../data/wordle_data.csv")
+wrdl_solutions = wrdl_data %>% 
+  filter(solution == TRUE) %>% 
+  select(word)
+```
+
+### Random Example
+
+```{r}
+set.seed(20230229)
+example = slice_sample(wrdl_solutions, n = 10) %>% 
+  arrange(word)
+
+example
+```
+
+### Examples
+
+```{r}
+example %>% 
+  filter(str_detect(word, "a"))
+
+example %>% 
+  filter(str_detect(word, "^a"))
+
+example %>% 
+  filter(str_detect(word, "[aeiouy]$"))
+
+example %>% 
+  mutate(n = str_count(word, "[aeiou]"))
+```
+
+
+## subsets
+```{r}
+example %>% 
+  mutate(first = str_sub(word, 1, 1),
+         first_three = str_sub(word, 1, 3),
+         last = str_sub(word, -1, -1),
+         last_two = str_sub(word, -2, -1),
+         not_first = str_sub(word, 2, -1),
+         first_vowel = str_extract(word, "[aeiou]"))
+
+example %>% 
+  mutate(first = str_extract(word, "^."),
+         first_three = str_extract(word, "^..."),
+         also_first_three = str_extract(word, "^.{3}"),
+         last = str_extract(word, ".$"),
+         last_two = str_extract(word, "..$"))
+
+example %>% 
+  mutate(a = str_extract(word, "a"))
+```
+
+### Length
+
+```{r}
+example %>% 
+  mutate(n = str_length(word))
+```
+
+

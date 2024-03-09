@@ -1,0 +1,904 @@
+Microsoft Windows [Version 10.0.22000.1574]
+(c) Microsoft Corporation. All rights reserved.
+
+C:\Users\Dell>ssh chikodikar@34.173.78.21
+chikodikar@34.173.78.21's password:
+Welcome to Ubuntu 20.04.5 LTS (GNU/Linux 5.15.0-1027-gcp x86_64)
+
+ * Documentation:  https://help.ubuntu.com
+ * Management:     https://landscape.canonical.com
+ * Support:        https://ubuntu.com/advantage
+
+  System information as of Mon Feb 20 05:56:52 UTC 2023
+
+  System load:  0.0               Processes:             103
+  Usage of /:   41.4% of 9.51GB   Users logged in:       0
+  Memory usage: 26%               IPv4 address for ens4: 10.128.0.3
+  Swap usage:   0%
+
+ * Strictly confined Kubernetes makes edge and IoT secure. Learn how MicroK8s
+   just raised the bar for easy, resilient and secure K8s cluster deployment.
+
+   https://ubuntu.com/engage/secure-kubernetes-at-the-edge
+
+6 updates can be applied immediately.
+To see these additional updates run: apt list --upgradable
+
+New release '22.04.1 LTS' available.
+Run 'do-release-upgrade' to upgrade to it.
+
+
+*** System restart required ***
+Last login: Mon Feb 20 03:12:56 2023 from 72.33.0.68
+chikodikar@myfirstvm1:~$ ls
+01.BashActivity             03.EditorActivity            checkP1Submission  week02  week05  week08  week11  week14
+02.FirstGitActivity         03.SecondGitActivity_sukrut  makeCopies.txt     week03  week06  week09  week12  week15
+02.FirstGitActivity.tar.gz  Project1_sukrut              week01             week04  week07  week10  week13
+chikodikar@myfirstvm1:~$ cd Project1_sukrut/
+chikodikar@myfirstvm1:~/Project1_sukrut$ ls
+role.txt
+chikodikar@myfirstvm1:~/Project1_sukrut$ git branch
+  AlgorithmEngineer
+  BackendDeveloper
+  DataWrangler
+* main
+chikodikar@myfirstvm1:~/Project1_sukrut$ git merge DataWrangler
+Merge made by the 'recursive' strategy.
+ Makefile          |  59 ++++++++
+ PostDW.java       |  39 +++++
+ PostReaderDW.java |  52 +++++++
+ data/._large.txt  | Bin 0 -> 163 bytes
+ data/._small.txt  | Bin 0 -> 163 bytes
+ data/fake.txt     |   4 +
+ data/large.txt    | 856 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ data/small.txt    |  12 ++
+ 8 files changed, 1022 insertions(+)
+ create mode 100644 Makefile
+ create mode 100644 PostDW.java
+ create mode 100644 PostReaderDW.java
+ create mode 100644 data/._large.txt
+ create mode 100644 data/._small.txt
+ create mode 100644 data/fake.txt
+ create mode 100644 data/large.txt
+ create mode 100644 data/small.txt
+chikodikar@myfirstvm1:~/Project1_sukrut$ git merge AlgorithmEngineer
+Merge made by the 'recursive' strategy.
+ CHSearchApp.java                  |  22 ++++++++++++++++++++
+ HashtableWithDuplicateKeysAE.java | 103 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 125 insertions(+)
+ create mode 100644 CHSearchApp.java
+ create mode 100644 HashtableWithDuplicateKeysAE.java
+chikodikar@myfirstvm1:~/Project1_sukrut$ git merge BackendDeveloper
+Merge made by the 'recursive' strategy.
+ BackendDeveloperTests.java               | 215 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ CHSearchBackendBD.java                   | 187 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ CHSearchBackendInterface.java            |  12 +++++
+ HashtableWithDuplicateKeysBD.java        |  98 +++++++++++++++++++++++++++++++++++++++
+ HashtableWithDuplicateKeysInterface.java |  10 ++++
+ MapADT.java                              |  33 ++++++++++++++
+ PostBD.java                              |  37 +++++++++++++++
+ PostInterface.java                       |  10 ++++
+ PostReaderBD.java                        |  27 +++++++++++
+ PostReaderInterface.java                 |   7 +++
+ log                                      |  39 ++++++++++++++++
+ 11 files changed, 675 insertions(+)
+ create mode 100644 BackendDeveloperTests.java
+ create mode 100644 CHSearchBackendBD.java
+ create mode 100644 CHSearchBackendInterface.java
+ create mode 100644 HashtableWithDuplicateKeysBD.java
+ create mode 100644 HashtableWithDuplicateKeysInterface.java
+ create mode 100644 MapADT.java
+ create mode 100644 PostBD.java
+ create mode 100644 PostInterface.java
+ create mode 100644 PostReaderBD.java
+ create mode 100644 PostReaderInterface.java
+ create mode 100644 log
+chikodikar@myfirstvm1:~/Project1_sukrut$ git checkout FrontendDeveloper
+Branch 'FrontendDeveloper' set up to track remote branch 'FrontendDeveloper' from 'origin'.
+Switched to a new branch 'FrontendDeveloper'
+chikodikar@myfirstvm1:~/Project1_sukrut$ git pull
+Warning: Permanently added the ECDSA host key for IP address '128.105.37.147' to the list of known hosts.
+Password:
+Duo two-factor login for chikodikar
+
+Enter a passcode or select one of the following options:
+
+ 1. Duo Push to XXX-XXX-9477
+
+Passcode or option (1-1): 1
+Success. Logging you in...
+Already up to date.
+chikodikar@myfirstvm1:~/Project1_sukrut$ ls
+CHSearchFrontendFD.java  role.txt
+chikodikar@myfirstvm1:~/Project1_sukrut$ cat CHSearchFrontendFD.java
+import java.io.FileNotFoundException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Scanner;
+
+/**
+ * Provide a text-based user interface to the searching capaibilities of the
+ * CHSearchApplication.
+ *
+ * @author FrontendDeveloper, courtesy of the CS400 course staff.
+ */
+public class CHSearchFrontendFD implements CHSearchFrontendInterface {
+        private Scanner userInput;
+        private CHSearchBackendInterface backend;
+
+        /**
+         * Initialize frontend to make use of a provided Scanner and CHSearchBackend.
+         *
+         * @param userInput can be used to read input from use, or to read from files
+         *                  for testing
+         * @param backend   placeholder by me, working implementation by Backend
+         *                  Developer
+         */
+        public CHSearchFrontendFD(Scanner userInput, CHSearchBackendInterface backend) {
+                this.userInput = userInput;
+                this.backend = backend;
+        }
+
+        /**
+         * Helper method to display a 79 column wide row of dashes: a horizontal rule.
+         */
+        private void hr() {
+                System.out.println("-------------------------------------------------------------------------------");
+        }
+
+        /**
+         * This loop repeated prompts the user for commands and displays appropriate
+         * feedback for each. This continues until the user enters 'q' to quit.
+         */
+        public void runCommandLoop() {
+                hr(); // display welcome message
+                System.out.println("Welcome to the Cheap and Healthy Search App.");
+                hr();
+
+                List<String> words;
+                char command = '\0';
+                while (command != 'Q') { // main loop continues until user chooses to quit
+                        command = this.mainMenuPrompt();
+                        switch (command) {
+                                case 'L': // System.out.println(" [L]oad data from file");
+                                        loadDataCommand();
+                                        break;
+                                case 'T': // System.out.println(" Search Post [T]itles");
+                                        words = chooseSearchWordsPrompt();
+                                        searchTitleCommand(words);
+                                        break;
+                                case 'B': // System.out.println(" Search Post [B]odies");
+                                        words = chooseSearchWordsPrompt();
+                                        searchBodyCommand(words);
+                                        break;
+                                case 'P': // System.out.println(" Search [P]ost titles and bodies");
+                                        words = chooseSearchWordsPrompt();
+                                        searchPostCommand(words);
+                                        break;
+                                case 'S': // System.out.println(" Display [S]tatistics for dataset");
+                                        displayStatsCommand();
+                                        break;
+                                case 'Q': // System.out.println(" [Q]uit");
+                                        // do nothing, containing loop condition will fail
+                                        break;
+                                default:
+                                        System.out.println(
+                                                        "Didn't recognize that command.  Please type one of the letters presented within []s to identify the command you would like to choose.");
+                                        break;
+                        }
+                }
+
+                hr(); // thank user before ending this application
+                System.out.println("Thank you for using the Cheap and Healthy Search App.");
+                hr();
+        }
+
+        /**
+         * Prints the command options to System.out and reads user's choice through
+         * userInput scanner.
+         */
+        public char mainMenuPrompt() {
+                // display menu of choices
+                System.out.println("Choose a command from the list below:");
+                System.out.println("    [L]oad data from file");
+                System.out.println("    Search Post [T]itles");
+                System.out.println("    Search Post [B]odies");
+                System.out.println("    Search [P]ost titles and bodies");
+                System.out.println("    Display [S]tatistics for dataset");
+                System.out.println("    [Q]uit");
+
+                // read in user's choice, and trim away any leading or trailing whitespace
+                System.out.print("Choose command: ");
+                String input = userInput.nextLine().trim();
+                if (input.length() == 0) // if user's choice is blank, return null character
+                        return '\0';
+                // otherwise, return an uppercase version of the first character in input
+                return Character.toUpperCase(input.charAt(0));
+        }
+
+        /**
+         * Prompt user to enter filename, and display error message when loading fails.
+         */
+        public void loadDataCommand() {
+                System.out.print("Enter the name of the file to load: ");
+                String filename = userInput.nextLine().trim();
+                try {
+                        backend.loadData(filename);
+                } catch (FileNotFoundException e) {
+                        System.out.println("Error: Could not find or load file: " + filename);
+                }
+        }
+
+        /**
+         * This method gives user the ability to interactively add or remove individual
+         * words from their query, before performing any kind of search.
+         */
+        public List<String> chooseSearchWordsPrompt() {
+                List<String> words = new ArrayList<>();
+                while (true) { // this loop ends when the user pressed enter (without typing any words)
+                        System.out.println("List of words to search for: " + words.toString());
+                        System.out.print("Word(s) to add-to/remove-from query, or press enter to search: ");
+                        String input = userInput.nextLine().replaceAll(",", "").trim();
+                        if (input.length() == 0) // an empty string ends this loop and method call
+                                return words;
+                        else
+                                // otherwise the specified word's presence in the list is toggled:
+                                for (String word : input.split(" "))
+                                        if (words.contains(word))
+                                                words.remove(word); // remove any words that were already in the list
+                                        else
+                                                words.add(word); // add any words that were previously missing
+                }
+        }
+
+        /**
+         * Prompts user for a list of words to search post titles for, and then displays
+         * the list of results.
+         */
+        public void searchTitleCommand(List<String> words) {
+                List<String> results = backend.findPostsByTitleWords(words.toString());
+                int resultIndex = 1;
+                if (results.size() > 0)
+                        System.out.println("Found Results:");
+                else
+                        System.out.println("No matches found.");
+                for (String result : results)
+                        System.out.println("[" + (resultIndex++) + "] " + result);
+        }
+
+        /**
+         * Prompts user for a list of words to search post bodies for, and then displays
+         * the list of results.
+         */
+        public void searchBodyCommand(List<String> words) {
+                List<String> results = backend.findPostsByBodyWords(words.toString());
+                int resultIndex = 1;
+                if (results.size() > 0)
+                        System.out.println("Found Results:");
+                else
+                        System.out.println("No matches found.");
+                for (String result : results)
+                        System.out.println("[" + (resultIndex++) + "] " + result);
+        }
+
+        /**
+         * Prompts user for a list of words to search post titles and bodies for, and
+         * then displays the list of results.
+         */
+        public void searchPostCommand(List<String> words) {
+                List<String> results = backend.findPostsByTitleOrBodyWords(words.toString());
+                int resultIndex = 1;
+                if (results.size() > 0)
+                        System.out.println("Found Results:");
+                else
+                        System.out.println("No matches found.");
+                for (String result : results)
+                        System.out.println("[" + (resultIndex++) + "] " + result);
+        }
+
+        /**
+         * Displays dataset statistics to System.out.
+         */
+        public void displayStatsCommand() {
+                System.out.println(backend.getStatisticsString());
+        }
+}
+chikodikar@myfirstvm1:~/Project1_sukrut$ cat role.txt
+Your role for P1 is:
+chikodikar@myfirstvm1:~/Project1_sukrut$ ls
+CHSearchFrontendFD.java  role.txt
+chikodikar@myfirstvm1:~/Project1_sukrut$ git branch
+  AlgorithmEngineer
+  BackendDeveloper
+  DataWrangler
+* FrontendDeveloper
+  main
+chikodikar@myfirstvm1:~/Project1_sukrut$ git checkout main
+Switched to branch 'main'
+Your branch is ahead of 'origin/main' by 8 commits.
+  (use "git push" to publish your local commits)
+chikodikar@myfirstvm1:~/Project1_sukrut$ git branch
+  AlgorithmEngineer
+  BackendDeveloper
+  DataWrangler
+  FrontendDeveloper
+* main
+chikodikar@myfirstvm1:~/Project1_sukrut$ git merge FrontendDeveloper
+Merge made by the 'recursive' strategy.
+ CHSearchFrontendFD.java | 192 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ CHSearchFrontendFD.java | 192 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 192 insertions(+)
+ create mode 100644 CHSearchFrontendFD.java
+chikodikar@myfirstvm1:~/Project1_sukrut$ ls
+BackendDeveloperTests.java     CHSearchFrontendFD.java                   Makefile     PostInterface.java        data
+CHSearchApp.java               HashtableWithDuplicateKeysAE.java         MapADT.java  PostReaderBD.java         log
+CHSearchBackendBD.java         HashtableWithDuplicateKeysBD.java         PostBD.java  PostReaderDW.java         role.txt
+CHSearchBackendInterface.java  HashtableWithDuplicateKeysInterface.java  PostDW.java  PostReaderInterface.java
+chikodikar@myfirstvm1:~/Project1_sukrut$ git log --graph --pretty=format:"%an (%ae)%n      %s%n%n"
+*   Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+|\        Merge branch 'FrontendDeveloper' into main
+| |
+| |
+*   Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| * Gary Dahl (dahl@cs.wisc.edu)
+| |       Adding FrontendDeveloper contributions to their branch
+| |
+| |
+* |   Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+|\ \        Merge branch 'BackendDeveloper' into main
+| | |
+| | |
+| * | Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| | |       adding log file
+| | |
+| | |
+| * | Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| |/        Commiting before logging
+| |
+| |
+* |   Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+|\ \        Merge branch 'AlgorithmEngineer' into main
+| | |
+| | |
+| * | Gary Dahl (dahl@cs.wisc.edu)
+| |/        Adding AlgorithmEngineer contributions to their branch
+| |
+| |
+* |   Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+|\ \        Merge branch 'DataWrangler' into main
+| | |
+| | |
+
+
+| | |
+| * | Gary Dahl (dahl@cs.wisc.edu)
+| | |       Adding fake.txt data to help demonstrate app
+| | |
+| | |
+| * | Gary Dahl (dahl@cs.wisc.edu)
+| |/        Adding DataWrangler contributions to their branch
+| |
+| |
+* | Gary Dahl (dahl@cs.wisc.edu)
+|/        Added role of Backend Developer to role.txt
+|
+|
+* Gary Dahl (dahl@cs.wisc.edu)
+        Added role.txt (without role) to project
+| * | Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| | |       adding log file
+| | |
+| | |
+| * | Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| |/        Commiting before logging
+| |
+| |
+* |   Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+|\ \        Merge branch 'AlgorithmEngineer' into main
+| | |
+| | |
+| * | Gary Dahl (dahl@cs.wisc.edu)
+| |/        Adding AlgorithmEngineer contributions to their branch
+| |
+| |
+* |   Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+|\ \        Merge branch 'DataWrangler' into main
+| | |
+| | |
+| * | Gary Dahl (dahl@cs.wisc.edu)
+| | |       Adding fake.txt data to help demonstrate app
+| | |
+| | |
+| * | Gary Dahl (dahl@cs.wisc.edu)
+| |/        Adding DataWrangler contributions to their branch
+| |
+| |
+* | Gary Dahl (dahl@cs.wisc.edu)
+|/        Added role of Backend Developer to role.txt
+|
+|
+* Gary Dahl (dahl@cs.wisc.edu)
+        Added role.txt (without role) to project
+
+
+chikodikar@myfirstvm1:~/Project1_sukrut$ git log --graph --pretty=format:"%an (%ae)%n      %s%n%n"
+*   Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+|\        Merge branch 'FrontendDeveloper' into main
+*   Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+|\        Merge branch 'FrontendDeveloper' into main
+| |
+| |
+| * Gary Dahl (dahl@cs.wisc.edu)
+| |       Adding FrontendDeveloper contributions to their branch
+| |
+| |
+* |   Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+|\ \        Merge branch 'BackendDeveloper' into main
+| | |
+| | |
+*   Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+|\        Merge branch 'FrontendDeveloper' into main
+| |
+| |
+| * Gary Dahl (dahl@cs.wisc.edu)
+| |       Adding FrontendDeveloper contributions to their branch
+| |
+| |
+* |   Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+|\ \        Merge branch 'BackendDeveloper' into main
+| | |
+| | |
+| * | Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| | |       adding log file
+| | |
+| | |
+| * | Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| |/        Commiting before logging
+| |
+| |
+* |   Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+|\ \        Merge branch 'AlgorithmEngineer' into main
+| | |
+| | |
+| * | Gary Dahl (dahl@cs.wisc.edu)
+| |/        Adding AlgorithmEngineer contributions to their branch
+| |
+| |
+* |   Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+|\ \        Merge branch 'DataWrangler' into main
+| | |
+| | |
+| * | Gary Dahl (dahl@cs.wisc.edu)
+| | |       Adding fake.txt data to help demonstrate app
+| | |
+chikodikar@myfirstvm1:~/Project1_sukrut$ git log --graph --pretty=format:"%d%n%an (%ae)%n      %s%n%n"
+*    (HEAD -> main)
+|\  Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| |       Merge branch 'FrontendDeveloper' into main
+| |
+| |
+| *  (origin/FrontendDeveloper, FrontendDeveloper)
+| | Gary Dahl (dahl@cs.wisc.edu)
+| |       Adding FrontendDeveloper contributions to their branch
+| |
+| |
+* |
+|\ \  Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| | |       Merge branch 'BackendDeveloper' into main
+| | |
+| | |
+| * |  (origin/BackendDeveloper, BackendDeveloper)
+| | | Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| | |       adding log file
+| | |
+| | |
+| * |
+| |/  Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| |         Commiting before logging
+| |
+| |
+* |
+|\ \  Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| | |       Merge branch 'AlgorithmEngineer' into main
+| | |
+| | |
+| * |  (origin/AlgorithmEngineer, AlgorithmEngineer)
+| |/  Gary Dahl (dahl@cs.wisc.edu)
+| |         Adding AlgorithmEngineer contributions to their branch
+| |
+| |
+* |
+|\ \  Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| | |       Merge branch 'DataWrangler' into main
+| | |
+| | |
+| * |  (origin/DataWrangler, DataWrangler)
+| | | Gary Dahl (dahl@cs.wisc.edu)
+| | |       Adding fake.txt data to help demonstrate app
+| | |
+| | |
+| * |
+| |/  Gary Dahl (dahl@cs.wisc.edu)
+| |         Adding DataWrangler contributions to their branch
+| |
+| |
+* |  (origin/main, origin/HEAD)
+|/  Gary Dahl (dahl@cs.wisc.edu)
+|         Added role of Backend Developer to role.txt
+|
+|
+*
+  Gary Dahl (dahl@cs.wisc.edu)
+        Added role.txt (without role) to project
+
+chikodikar@myfirstvm1:~/Project1_sukrut$ git log --graph --pretty=format:"%d%n%an (%ae)%n      %s%n%n"
+*    (HEAD -> main)
+|\  Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| |       Merge branch 'FrontendDeveloper' into main
+| |
+| |
+| *  (origin/FrontendDeveloper, FrontendDeveloper)
+| | Gary Dahl (dahl@cs.wisc.edu)
+| |       Adding FrontendDeveloper contributions to their branch
+| |
+| |
+* |
+|\ \  Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| | |       Merge branch 'BackendDeveloper' into main
+| | |
+| | |
+| * |  (origin/BackendDeveloper, BackendDeveloper)
+| | | Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| | |       adding log file
+| | |
+| | |
+| * |
+| |/  Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| |         Commiting before logging
+| |
+| |
+* |
+|\ \  Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| | |       Merge branch 'AlgorithmEngineer' into main
+| | |
+| | |
+| * |  (origin/AlgorithmEngineer, AlgorithmEngineer)
+| |/  Gary Dahl (dahl@cs.wisc.edu)
+| |         Adding AlgorithmEngineer contributions to their branch
+| |
+| |
+chikodikar@myfirstvm1:~/Project1_sukrut$ vim glog
+chikodikar@myfirstvm1:~/Project1_sukrut$ ./glog
+-bash: ./glog: Permission denied
+chikodikar@myfirstvm1:~/Project1_sukrut$ chmod +x glog
+chikodikar@myfirstvm1:~/Project1_sukrut$ ./glog
+*    (HEAD -> main)
+|\  Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| |       Merge branch 'FrontendDeveloper' into main
+| |
+| |
+| *  (origin/FrontendDeveloper, FrontendDeveloper)
+| | Gary Dahl (dahl@cs.wisc.edu)
+| |       Adding FrontendDeveloper contributions to their branch
+| |
+| |
+* |
+|\ \  Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| | |       Merge branch 'BackendDeveloper' into main
+| | |
+| | |
+| * |  (origin/BackendDeveloper, BackendDeveloper)
+| | | Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| | |       adding log file
+| | |
+| | |
+| * |
+| |/  Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| |         Commiting before logging
+| |
+| |
+* |
+|\ \  Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| | |       Merge branch 'AlgorithmEngineer' into main
+| | |
+| | |
+| * |  (origin/AlgorithmEngineer, AlgorithmEngineer)
+| |/  Gary Dahl (dahl@cs.wisc.edu)
+| |         Adding AlgorithmEngineer contributions to their branch
+| |
+| |
+* |
+|\ \  Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| | |       Merge branch 'DataWrangler' into main
+| | |
+| | |
+| * |  (origin/DataWrangler, DataWrangler)
+| | | Gary Dahl (dahl@cs.wisc.edu)
+| | |       Adding fake.txt data to help demonstrate app
+| | |
+| | |
+| * |
+| |/  Gary Dahl (dahl@cs.wisc.edu)
+| |         Adding DataWrangler contributions to their branch
+| |
+| |
+* |  (origin/main, origin/HEAD)
+|/  Gary Dahl (dahl@cs.wisc.edu)
+|         Added role of Backend Developer to role.txt
+|
+|
+*
+  Gary Dahl (dahl@cs.wisc.edu)
+        Added role.txt (without role) to project
+
+chikodikar@myfirstvm1:~/Project1_sukrut$ vim glog
+chikodikar@myfirstvm1:~/Project1_sukrut$ ./glog
+==========BRANCHES==========
+  AlgorithmEngineer
+  BackendDeveloper
+  DataWrangler
+  FrontendDeveloper
+* main
+=============LOG=============
+*    (HEAD -> main)
+|\  Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| |       Merge branch 'FrontendDeveloper' into main
+| |
+| |
+| *  (origin/FrontendDeveloper, FrontendDeveloper)
+| | Gary Dahl (dahl@cs.wisc.edu)
+| |       Adding FrontendDeveloper contributions to their branch
+| |
+| |
+* |
+|\ \  Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| | |       Merge branch 'BackendDeveloper' into main
+| | |
+| | |
+| * |  (origin/BackendDeveloper, BackendDeveloper)
+| | | Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| | |       adding log file
+| | |
+| | |
+| * |
+| |/  Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| |         Commiting before logging
+| |
+*    (HEAD -> main)
+|\  Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| |       Merge branch 'FrontendDeveloper' into main
+| |
+| |
+| *  (origin/FrontendDeveloper, FrontendDeveloper)
+| | Gary Dahl (dahl@cs.wisc.edu)
+| |       Adding FrontendDeveloper contributions to their branch
+| |
+| |
+* |
+|\ \  Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| | |       Merge branch 'BackendDeveloper' into main
+| | |
+| | |
+| * |  (origin/BackendDeveloper, BackendDeveloper)
+| | | Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| | |       adding log file
+| | |
+| | |
+| * |
+| |/  Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| |         Commiting before logging
+| |
+| |
+* |
+|\ \  Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| | |       Merge branch 'AlgorithmEngineer' into main
+| | |
+| | |
+| * |  (origin/AlgorithmEngineer, AlgorithmEngineer)
+| |/  Gary Dahl (dahl@cs.wisc.edu)
+| |         Adding AlgorithmEngineer contributions to their branch
+| |
+| |
+chikodikar@myfirstvm1:~/Project1_sukrut$ ./glog
+==========BRANCHES==========
+  AlgorithmEngineer
+  BackendDeveloper
+  DataWrangler
+  FrontendDeveloper
+* main
+=============LOG=============
+*    (HEAD -> main)
+|\  Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| |       Merge branch 'FrontendDeveloper' into main
+| |
+| |
+| *  (origin/FrontendDeveloper, FrontendDeveloper)
+| | Gary Dahl (dahl@cs.wisc.edu)
+| |       Adding FrontendDeveloper contributions to their branch
+| |
+| |
+* |
+|\ \  Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| | |       Merge branch 'BackendDeveloper' into main
+| | |
+| | |
+| * |  (origin/BackendDeveloper, BackendDeveloper)
+| | | Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| | |       adding log file
+| | |
+| | |
+| * |
+| |/  Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| |         Commiting before logging
+| |
+| |
+* |
+|\ \  Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| | |       Merge branch 'AlgorithmEngineer' into main
+| | |
+| | |
+| * |  (origin/AlgorithmEngineer, AlgorithmEngineer)
+| |/  Gary Dahl (dahl@cs.wisc.edu)
+| |         Adding AlgorithmEngineer contributions to their branch
+| |
+| |
+* |
+|\ \  Sukrut Madhav Chikodikar (chikodikar@wisc.edu)
+| | |       Merge branch 'DataWrangler' into main
+| | |
+| | |
+| * |  (origin/DataWrangler, DataWrangler)
+| | | Gary Dahl (dahl@cs.wisc.edu)
+| | |       Adding fake.txt data to help demonstrate app
+| | |
+| | |
+| * |
+| |/  Gary Dahl (dahl@cs.wisc.edu)
+| |         Adding DataWrangler contributions to their branch
+| |
+| |
+* |  (origin/main, origin/HEAD)
+|/  Gary Dahl (dahl@cs.wisc.edu)
+|         Added role of Backend Developer to role.txt
+|
+|
+*
+  Gary Dahl (dahl@cs.wisc.edu)
+        Added role.txt (without role) to project
+
+chikodikar@myfirstvm1:~/Project1_sukrut$ ls
+BackendDeveloperTests.java     CHSearchFrontendFD.java                   Makefile     PostInterface.java        data
+CHSearchApp.java               HashtableWithDuplicateKeysAE.java         MapADT.java  PostReaderBD.java         glog
+CHSearchBackendBD.java         HashtableWithDuplicateKeysBD.java         PostBD.java  PostReaderDW.java         log
+CHSearchBackendInterface.java  HashtableWithDuplicateKeysInterface.java  PostDW.java  PostReaderInterface.java  role.txt
+chikodikar@myfirstvm1:~/Project1_sukrut$ vim HashtableMap.java
+chikodikar@myfirstvm1:~/Project1_sukrut$ cp C:/Sukrut/UW\ Madison/CS\ 400\ projects/P1W2HashTable/src
+cp: missing destination file operand after 'C:/Sukrut/UW Madison/CS 400 projects/P1W2HashTable/src'
+Try 'cp --help' for more information.
+chikodikar@myfirstvm1:~/Project1_sukrut$ ls
+BackendDeveloperTests.java     HashtableMap.java                         MapADT.java         PostReaderDW.java         role.txt
+CHSearchApp.java               HashtableWithDuplicateKeysAE.java         PostBD.java         PostReaderInterface.java
+CHSearchBackendBD.java         HashtableWithDuplicateKeysBD.java         PostDW.java         data
+CHSearchBackendInterface.java  HashtableWithDuplicateKeysInterface.java  PostInterface.java  glog
+CHSearchFrontendFD.java        Makefile                                  PostReaderBD.java   log
+chikodikar@myfirstvm1:~/Project1_sukrut$ vim Makefile
+chikodikar@myfirstvm1:~/Project1_sukrut$ make BackendDeveloper_Tests
+make: *** No rule to make target 'BackendDeveloper_Tests.java', needed by 'BackendDeveloper_Tests.class'.  Stop.
+chikodikar@myfirstvm1:~/Project1_sukrut$ vim Makefile
+chikodikar@myfirstvm1:~/Project1_sukrut$ vim Makefile
+chikodikar@myfirstvm1:~/Project1_sukrut$ make FrontendDeveloper_Tests
+make: *** No rule to make target 'FrontendDeveloper_Tests.java', needed by 'FrontendDeveloper_Tests.class'.  Stop.
+chikodikar@myfirstvm1:~/Project1_sukrut$ make FrontendDeveloper_Test
+make: *** No rule to make target 'FrontendDeveloper_Test'.  Stop.
+chikodikar@myfirstvm1:~/Project1_sukrut$ vim MakeFile
+chikodikar@myfirstvm1:~/Project1_sukrut$ ls
+BackendDeveloperTests.java     HashtableMap.java                         Makefile            PostReaderBD.java         log
+CHSearchApp.java               HashtableWithDuplicateKeysAE.java         MapADT.java         PostReaderDW.java         role.txt
+CHSearchBackendBD.java         HashtableWithDuplicateKeysBD.java         PostBD.java         PostReaderInterface.java
+CHSearchBackendInterface.java  HashtableWithDuplicateKeysInterface.java  PostDW.java         data
+CHSearchFrontendFD.java        MakeFile                                  PostInterface.java  glog
+chikodikar@myfirstvm1:~/Project1_sukrut$ rm MakeFile
+chikodikar@myfirstvm1:~/Project1_sukrut$ ls
+BackendDeveloperTests.java     HashtableMap.java                         MapADT.java         PostReaderDW.java         role.txt
+CHSearchApp.java               HashtableWithDuplicateKeysAE.java         PostBD.java         PostReaderInterface.java
+CHSearchBackendBD.java         HashtableWithDuplicateKeysBD.java         PostDW.java         data
+CHSearchBackendInterface.java  HashtableWithDuplicateKeysInterface.java  PostInterface.java  glog
+CHSearchFrontendFD.java        Makefile                                  PostReaderBD.java   log
+chikodikar@myfirstvm1:~/Project1_sukrut$ vim Makefile
+chikodikar@myfirstvm1:~/Project1_sukrut$ make BackendDeveloperTests
+make: *** No rule to make target 'BackendDeveloper_Tests.java', needed by 'BackendDeveloper_Tests.class'.  Stop.
+chikodikar@myfirstvm1:~/Project1_sukrut$ vim Makefile
+chikodikar@myfirstvm1:~/Project1_sukrut$  58L, 2237C written
+chikodikar@myfirstvm1:~/Project1_sukrut$ ls
+BackendDeveloperTests.java     HashtableMap.java                         MapADT.java         PostReaderDW.java         role.txt
+CHSearchApp.java               HashtableWithDuplicateKeysAE.java         PostBD.java         PostReaderInterface.java
+CHSearchBackendBD.java         HashtableWithDuplicateKeysBD.java         PostDW.java         data
+CHSearchBackendInterface.java  HashtableWithDuplicateKeysInterface.java  PostInterface.java  glog
+CHSearchFrontendFD.java        Makefile                                  PostReaderBD.java   log
+chikodikar@myfirstvm1:~/Project1_sukrut$ mv BackendDeveloperTests.java BackendDeveloper_Tests.java
+chikodikar@myfirstvm1:~/Project1_sukrut$ ls
+BackendDeveloper_Tests.java    HashtableMap.java                         MapADT.java         PostReaderDW.java         role.txt
+CHSearchApp.java               HashtableWithDuplicateKeysAE.java         PostBD.java         PostReaderInterface.java
+CHSearchBackendBD.java         HashtableWithDuplicateKeysBD.java         PostDW.java         data
+CHSearchBackendInterface.java  HashtableWithDuplicateKeysInterface.java  PostInterface.java  glog
+CHSearchFrontendFD.java        Makefile                                  PostReaderBD.java   log
+chikodikar@myfirstvm1:~/Project1_sukrut$ make BackendDeveloper_Tests
+javac HashtableMap.java MapADT.java
+HashtableMap.java:18: error: cannot find symbol
+    protected Element<KeyType, ValueType>[] arrayOfElem; // array of elements
+              ^
+  symbol:   class Element
+  location: class HashtableMap<KeyType,ValueType>
+  where KeyType,ValueType are type-variables:
+    KeyType extends Object declared in class HashtableMap
+    ValueType extends Object declared in class HashtableMap
+HashtableMap.java:28: error: cannot find symbol
+        arrayOfElem =  (Element<KeyType, ValueType>[]) new Element[capacity];
+                        ^
+  symbol:   class Element
+  location: class HashtableMap<KeyType,ValueType>
+  where KeyType,ValueType are type-variables:
+    KeyType extends Object declared in class HashtableMap
+    ValueType extends Object declared in class HashtableMap
+HashtableMap.java:28: error: cannot find symbol
+        arrayOfElem =  (Element<KeyType, ValueType>[]) new Element[capacity];
+                                                           ^
+  symbol:   class Element
+  location: class HashtableMap<KeyType,ValueType>
+  where KeyType,ValueType are type-variables:
+    KeyType extends Object declared in class HashtableMap
+    ValueType extends Object declared in class HashtableMap
+HashtableMap.java:37: error: cannot find symbol
+        arrayOfElem = (Element<KeyType, ValueType>[]) new Element[8];
+                       ^
+  symbol:   class Element
+  location: class HashtableMap<KeyType,ValueType>
+  where KeyType,ValueType are type-variables:
+    KeyType extends Object declared in class HashtableMap
+    ValueType extends Object declared in class HashtableMap
+HashtableMap.java:37: error: cannot find symbol
+        arrayOfElem = (Element<KeyType, ValueType>[]) new Element[8];
+                                                          ^
+  symbol:   class Element
+  location: class HashtableMap<KeyType,ValueType>
+  where KeyType,ValueType are type-variables:
+    KeyType extends Object declared in class HashtableMap
+    ValueType extends Object declared in class HashtableMap
+HashtableMap.java:73: error: cannot find symbol
+        Element<KeyType, ValueType>[] arrayOfElem2=new Element[getCapacity()*2];
+        ^
+  symbol:   class Element
+  location: class HashtableMap<KeyType,ValueType>
+  where KeyType,ValueType are type-variables:
+    KeyType extends Object declared in class HashtableMap
+    ValueType extends Object declared in class HashtableMap
+HashtableMap.java:73: error: cannot find symbol
+        Element<KeyType, ValueType>[] arrayOfElem2=new Element[getCapacity()*2];
+                                                       ^
+  symbol:   class Element
+  location: class HashtableMap<KeyType,ValueType>
+  where KeyType,ValueType are type-variables:
+    KeyType extends Object declared in class HashtableMap
+    ValueType extends Object declared in class HashtableMap
+HashtableMap.java:105: error: cannot find symbol
+        arrayOfElem[index]=new Element<>(key,value);
+                               ^
+  symbol:   class Element
+  location: class HashtableMap<KeyType,ValueType>
+  where KeyType,ValueType are type-variables:
+    KeyType extends Object declared in class HashtableMap
+    ValueType extends Object declared in class HashtableMap
+HashtableMap.java:147: error: cannot find symbol
+        arrayOfElem[indexOfElem(key)]= new Element<>(null, null);
+                                           ^
+  symbol:   class Element
+  location: class HashtableMap<KeyType,ValueType>
+  where KeyType,ValueType are type-variables:
+    KeyType extends Object declared in class HashtableMap
+    ValueType extends Object declared in class HashtableMap
+9 errors
+make: *** [Makefile:26: HashtableMap.class] Error 1
+chikodikar@myfirstvm1:~/Project1_sukrut$ make FrontendDeveloper_Tests
+make: *** No rule to make target 'FrontendDeveloper_Tests.java', needed by 'FrontendDeveloper_Tests.class'.  Stop.
+chikodikar@myfirstvm1:~/Project1_sukrut$
+
+

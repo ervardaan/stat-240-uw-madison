@@ -1,0 +1,437 @@
+---
+title: "STAT 240 Semester Review"
+output:
+  html_document: default
+---
+
+\newcommand{\E}{\mathsf{E}}
+\newcommand{\Var}{\mathsf{Var}}
+\newcommand{\SD}{\mathsf{SD}}
+\newcommand{\SE}{\mathsf{SE}}
+\renewcommand{\prob}{\mathsf{P}}
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE, message=FALSE, warning = FALSE,
+                      cache=TRUE, autodep=TRUE, cache.comments=FALSE)
+library(tidyverse)
+library(scales)
+library(tidymodels)
+library(kableExtra)
+source("../../scripts/viridis.R")
+source("../../scripts/ggprob.R")
+```
+
+This semester review provides a summary of concepts you should review before the final exam.
+
+- The following summaries list a number of R commands you should have learned throughout the semester.
+- If you do not know some, research and write something on your review sheet for reference.
+- If concepts are unclear, review the relevant lecture
+
+### Unit 2: Data Visualization
+
+#### Data characteristics
+
+- Variables might be quantitative or numerical
+- Tidy data frames are rectangular tables of data where:
+    - each row is a case (observations)
+    - each column is a variable
+
+#### ggplot2
+
+- Know the commands associated with standard types of graphs:
+    - `geom_hist()` for histograms
+    - `geom_density()` for density plots
+    - `geom_bar()` and `geom_col()` for bar plots
+    - `geom_point()` for scatter plots
+    - `geom_line()` for line or trace plots
+- Know which plots are useful for which types of variables    
+- Know the command and arguments to add a trend line or curve
+    - `geom_smooth()`
+- Know how to add auxiliary lines to a plot and how to modify the color and line type
+    - `geom_hline()`
+    - `geom_vline()`
+    - `geom_abline()`
+    - `geom_segment()`
+- Know how to modify axis labels and the plot title
+    - `xlab()`
+    - `ylab()`
+    - `ggtitle()`
+- Know how to change scales
+    - `scale_x_continuous()`
+    - `scale_y_continuous()` and special cases
+- Know how to interpret information in plots of data
+    - Estimate a mean or median
+    - Estimate a standard deviation
+    - Estimate a slope or intercept
+    - Describe a shape
+    - Estimate a quantile
+- Know various aesthetics which may to which variables might be mapped
+    - `x` position
+    - `y` position
+    - `shape`
+    - `color` boundary or line color
+    - `alpha` for opaqueness (1 is opaque, 0 is transparent)
+    - `fill` for a fill color
+    - there are also less common ones for specific geometries such as `linetype` for lines
+- Know how to partition data into groups with a different panel for each part of the data using `facet_wrap()` or `facet_grid()`    
+
+#### Numerical Summaries of Data
+
+- Know how to calculate and interpret mean, median, sd, variance, max, min, and quantiles
+
+#### Trend Lines
+
+- Know how to fit and informally interpret a trend line through data
+- Understand what a residual is
+- Know how to examine a residual plot for an informal goodness of fit:
+    - no patterns in the residual plot
+    - similar sized variation around the line $y=0$
+    
+### Unit 3: Data Wrangling
+
+- Know frequently used functions to manipulate data frames
+    - `mutate()`, `select()`, and `relocate()`  affect columns
+    - `filter()`, `arrange()`, and various `slice()` commands affect rows
+    - `summarize()` creates a summary table
+    - use `group_by()` to form groups before `summarize()` or `mutate()`
+- Review how to use `across()` within `summarize()` to apply one or more functions to each of several columns
+- Review how to use `select()` helper functions such as `contains()`, `starts_with()`, `ends_with()`, `everything()`
+- Know how to combine data tables    
+    - `bind_rows()` and `bind_cols()` paste together data frames together
+    - The *mutating join* functions add new columns and potentially change the number of rows
+        - `left_join()`, `right_join()`, `inner_join()`, `full_join()`
+    - There are also *filtering join* functions which keep columns intact, but remove rows
+
+### Unit 4: Dates
+
+- The **lubridate** package has many functions for dealing with dates and times
+- A conventional date is in `yyyy-mm-dd` format:
+    - a four-digit year, dash, two-digit month, dash, two-digit day
+- The functions `ymd()` and relatives (such as `dmy()`) specify the order in which the year, month, and day appear, and can parse many formats as a date, understanding numbers or abbreviations as months, for example
+- While there are many functions for dealing with times and durations and periods of time, you do not need to review these
+
+### Unit 5: Reshaping Data
+
+- The function `pivot_wider()` makes a data table wider by taking the information in some columns and spreading this data across multiple columns
+- The function `pivot_longer()` takes data from one or a few columns and gathers this into fewer columns
+- Know how to use each
+
+### Unit 6: Strings and Regular Expressions
+
+#### Strings
+- Strings are data objects which contain sequences of characters
+
+#### String Commands
+
+- There are many **stringr** functions to extract information from and manipulate strings.
+- These commands all begin `str_`
+- Here are several important ones to know: `str_c()`, `str_detect()`, `str_length()`, `str_extract()`, `str_sub()`, `str_count()`, `str_replace()`, `str_to_lower()`, `str_to_upper()`
+
+#### Regular Expressions
+
+- A regular expression is a sequence of symbols which is used to match patterns in strings.
+- There are many symbols in a regular expression which mean something other than the literal character they represent
+- For example:
+    - the period `.` matches any single character
+    - the quantifier `+` means that the previous regular expression is repeated must appear one or more times
+    - in contrast, the quantifier `*` means the previous regular expression is repeated zero or more times and `?` means the previous expression is repeated zero or one time
+    - there are many others
+- Look over the notes to review the meaning of these regular expression special symbols: `[`, `]`, `{`, `}`, `^`, `$`, `.`, `?`, `*`, `\`, `|`    
+- Understand the peculiarities of representing regular expressions in R as strings:
+    - A regular expression such as `[a-e]+\+$` matches a pattern with one or more letters from a through e followed by a literal plus sign `+` followed by the end of the string.
+    - The back slash escape character `\` means that the following special character should not be treated as having special meaning in the regular expression, but should be treated as a character which matches the specific character.
+    - Regular expressions are stored in R as strings
+    - As the character `\` has a special meaning in a string, each `\` in a regular expression must be duplicated in the string representation of the regular expression.
+    - So the regular expression `[a-e]+\+$` is represented in R as the string `"[a-e]+\\+$`
+    - To go from a regular expression to its string representation, duplicate every `\`.
+    - To go from the string representation of a regular expression to the regular expression, change each pair `\\` to a single `\`
+
+### Unit 9: Probability
+
+- Know that the total amount of probability is one
+- A random variable is a numerical value generated by a random process
+- Two types of random variables are *continuous* and *discrete*
+- The *probability distribution* of a random variable is a description of the possible values of the random variable and the probability (or probability density) of each possible value
+- For discrete random variables, probability is distributed on the number line in discrete chunks
+    - The distribution is the list of possible values and their probabilities which must sum to one
+- For continuous random variables, we describe the distribution with a *density function*
+    - A density function is non-negative and the total area under the curve is one
+    - The probability that a continuous random variable is in some interval is the area under the density curve above the interval
+- The *cumulative distribution function* of a random variable is the probability that the random variable is equal to or less than the argument.
+$$
+F(x) = \prob(X \le x)
+$$
+- A quantile is an inverse of the cumulative distribution function
+
+#### Moments
+
+- The mean of a random variable $X$, also called the *expected value* $\E(X)$ is the weighted average of its possible values, weighted by their probabilities (or densities)
+- The mean is often given the symbol $\mu$
+- The mean need not be a possible value and is the balancing point of the distribution
+- The *variance* of a random variable is the expected value of the squared distance from the mean
+$$
+\Var(X) = \E\big( (X-\mu)^2 \big)
+$$
+- This definition squares the units: easier to interpret is its square root, the *standard deviation*
+
+#### Binomial Distributions
+
+- The only discrete probability distribution we examined closely is the *binomial distribution* which models the number of "successes" in a fixed number $n$ of independent Bernoulli trials with the same probability $p$
+- Review the binomial modeling assumptions with the acronym BINS
+- The possible values are $0, \ldots, n$
+- Know the formula for the probability and how to use the functions `rbinom()`, `dbinom()`, `pbinom()`, and `qbinom()`
+- Know the mean and standard deviation of the binomial distribution
+- We often use the binomial distribution to model the distribution of proportions in random samples
+
+#### Normal Distributions
+
+- The most important continuous random variable we studied was the *normal distribution*, or the bell-shaped curve
+- The two key parameters are the mean $\mu$ and standard deviation $\sigma$
+- Know how to *standardize*: $Z = (X - \mu)/\sigma$ and $X = \mu + Z\sigma$.
+- For any normal distribution:
+    - $\prob(\mu - \sigma < X < \mu + \sigma) \approx 0.68$
+    - $\prob(\mu - 2\sigma < X < \mu + 2\sigma) \approx 0.95$
+    - $\prob(\mu - 3\sigma < X < \mu + 3\sigma) \approx 0.997$
+- In a graph of the normal density, the points of inflection are one standard deviation below and above the mean
+
+#### Other distributions
+
+- Other distributions of importance in statistical inference that were introduced later include the t and chi-square distributions, each of which is determined by a parameter named the "degrees of freedom"
+
+### Unit 10: Inference about proportions
+
+- Know how to define a *population* and a *sample* in a given setting
+- The parameter $p$ is a characteristic of a population and represents an *unknown parameter*
+- The statistic $\hat{p}$ is the sample proportion which may be calculated from sample data, $\hat{p} = x/n$
+- We often model a proportion as $X/n$ where $X$ has a binomial distribution.
+- The random sample proportion $\hat{P} = X/n$ has mean $\E \big( \hat{P} \big) = p$ and standard deviation $\SD \big( \hat{P} \big) = \sqrt{p(1-p)/n}$
+- When we treat $\hat{P}$ as an estimate of the population parameter $p$, we refer to the standard deviation of the sampling distribution of $\hat{P}$ as the *standard error*, or $\SE(\hat{P})$.
+
+#### Confidence Intervals
+
+- A typical confidence interval for $p$ has the form
+$$
+(\text{point estimate}) \pm (\text{normal quantile}) \times \SE
+$$
+where the point estimate and standard error are estimated from the data
+- For a 95% confidence interval, the quantile is $z = \text{qnorm}(0.975) \doteq 1.96$ which is the 0.975 quantile of the standard normal distribution.
+    - The middle 95% of a standard normal density is between $-1.96$ and $1.96$
+- We can estimate $\SE$ by simulation: know the steps (not the code, but in principle how to use simulation to estimate $\SE$)
+- The *Wald* method has:
+    - $(\text{point estimate}) = \hat{p}$
+    - $\SE = \sqrt{ \frac{\hat{p}(1 - \hat{p})}{n} }$
+- However, better accuracy is found by using the *Agresti-Coull* method with:
+    - $(\text{point estimate}) = \tilde{p} = (x+2)/(n+4)$
+    - $\SE = \sqrt{ \frac{\tilde{p}(1 - \tilde{p})}{n+4} }$
+- When given a problem in context, be able to interpret the confidence interval in context.
+- DO NOT SAY
+
+> We are 95% confident that $p$ is between 0.46 and 0.78
+
+- DO SAY
+
+> We are 95% confident that the long-run proportion that a specific chimpanzee makes the pro-social choice in the given experimental settings is between 46% and 78%
+
+- Also review methods for confidence intervals for differences in population proportions
+
+#### Hypothesis Tests
+
+- Know the steps of conducting a hypothesis test
+- For proportions, know how to calculate a p-value from the binomial distribution
+- ALWAYS assume that the null hypothesis is true when computing the p-value
+- Use this when calculating the standard error too
+- Understand the difference between one-sided and two-sided tests
+- Be able to interpret the results of a hypothesis test in context
+- Also know how to do a z-test for hypothesis tests about two proportions
+
+### Unit 11: Inferences about means
+
+- Understand both confidence intervals and hypothesis tests for a single mean $\mu$ from one population or a difference in means $\mu_1 - \mu_2$ for differences in two populations
+- Typically, population standard deviations are not known, so we use values from a t distribution:
+    - quantiles for a confidence interval
+    - to compute p-values for hypothesis tests
+- t distributions have different degrees of freedom
+
+#### Single mean
+
+- degrees of freedom = $n-1$
+- $\SE(\bar{x}) = \sigma/\sqrt{n} \approx s / \sqrt{n}$
+
+#### Confidence interval
+
+$$
+\bar{x} \pm t^* \SE(\bar{x})
+$$
+
+- where $t^*$ is a critical quantile from a t distribution for the given confidence level
+    - most often the 0.975 quantile for a 95% confidence interval
+
+#### Hypothesis test
+
+- Use a t test
+
+$$
+t = \frac{ \bar{x} - \mu_0 }{s / \sqrt{n}}
+$$
+
+- if the null hypothesis is $H_0: \mu = \mu_0$
+
+- Be able to interpret the output from `t.test()` for both confidence intervals and hypothesis tests
+
+#### Paired Settings
+
+- In a *paired setting*, there is a single sample of pairs of observations
+- There is a reason that a specific measurement under one condition is paired with a specific measurement under a second condition
+- Take differences between paired observations and do inference on this single sample of differences
+
+#### Two Populations
+
+- Confidence intervals and hypothesis tests where we do not assume that $\sigma_1 = \sigma_2$ are best completed using the Welch method
+- The t distribution is approximate and has a complicated degrees of freedom value between $\min(n_1 - 1, n_2 - 1)$ and $n_1 + n_2 - 2$.
+- Standard error formulas:
+$$
+\SE(\bar{x}_1 - \bar{x}_2) =
+\sqrt{ \SE(\bar{x}_1)^2 + \SE(\bar{x}_2)^2 }
+$$
+$$
+\SE(\bar{x}_1 - \bar{x}_2) =
+\sqrt{ \frac{\sigma_1^2}{n_1} + \frac{\sigma_2^2}{n_2} }
+$$
+- Estimate the standard error by replacing $\sigma_i$ with the corresponding sample standard deviation
+- The test statistic for $H_0: \mu_1 = \mu_2$ is
+$$
+t = \frac{\bar{x}_1 - \bar{x}_2}{\SE(\bar{x}_1 - \bar{x}_2)}
+$$
+- Interpret both confidence intervals and hypothesis tests in context, following lecture examples
+
+### Unit 12: Simple Linear Regression
+
+#### Correlation
+
+- Know facts about the correlation coefficient $r$
+$$
+r = \frac{1}{n-1} \sum_{i=1}^n
+  \bigg(\frac{x_i - \bar{x}}{s_x}\bigg)
+  \bigg(\frac{y_i - \bar{y}}{s_y}\bigg)
+$$
+- $r$ is only defined for quantitative variables
+- It does **not** make sense to talk about the correlation between variables where one or more is categorical
+    - For example, it makes no sense to say that times finishing the Boston Marathon are **correlated** with gender, as gender is not a quantitative variable
+    - We can say that there is an **association** between gender and times to finish the Boston Marathon if there are differences in the means between the two groups
+- $-1 \le r \le 1$
+- $r = -1$ if and only if the points lie exactly on a line with a negative slope
+- $r = 1$ if and only if the points lie exactly on a line with a positive slope
+- Changing units in a linear way for $x$ and or $y$ does not change the value of $r$ (the sign changes if multiplying by a negative value)
+- $r$ is a measure of the strength and direction of a *linear* relationship between two quantitative variables
+- the variables might have a very strong non-linear relationship significantly stronger than the best linear relationship for any $r$ values except at the end points.
+- the variables might not have a non-linear relationship significantly stronger than the best linear relationship for any $r$ values except at the end points
+- In short, $r$ says **nothing** about the strength of potential non-linear relationships between variables
+- Plot your data!
+
+#### Regression
+
+- The simple linear regression model is
+$$
+y_i = \beta_0 + \beta_1 x_i + \varepsilon_i
+$$
+- $\beta_0$ is the y intercept and is $\E(Y \mid X=0)$
+    - In some contexts the mean value of $Y$ when $X=0$ has an interpretation
+    - In other contexts, this is not a meaningful value or may be well outside the range of the observed data
+- $\beta_1$ is the slope
+    - The slope is often the most meaningful parameter of interest
+    - The units of the slope are the units of $y$ divided by the units of $x$
+- $\varepsilon_i$ is the vertical distance between the point $y_i$ and its mean value $\E(Y_i \mid x_i) = \beta_0 + \beta_1 x_i$
+- We often call this difference "error", but it need not be measurement error; it can just be natural differences due to chance or the effects of other variables not included in the model
+- Model assumptions are:
+    - **linearity**: There is a linear relationship between $\E(Y_i \mid x_i)$ and $x_i$ given the values of the $x_i$
+    - **independence among errors**: the values $\varepsilon_i$ are independent of one another
+    - **equal variance**: $\Var(\varepsilon_i) = \sigma^2$ for all $i$
+    - **independence between errors and $x$**: the values of $\epsilon_i$ are not dependent on the values of $x_i$
+
+#### Estimation
+
+- We can estimate the regression parameters by least squares
+- These least squares estimates have simple formulas in relationship to summary statistics:
+    - $\hat{\beta}_1 = r s_y / s_x$
+    - $\hat{\beta}_0 = \bar{y} - \hat{\beta}_1 \bar{x}$
+- The fitted regression line is
+$$
+\hat{y} = \hat{\beta}_0 + \hat{\beta}x
+$$
+- Regression is directional: changing the role of $x$ and $y$ results in a different line (unless $r=1$ or $r=-1$)
+- Note that if we write $x = \bar{x} + z s_x$ as the mean plus $z$ standard deviations, the corresponding predicted value $\hat{y}$ is $\hat{y} = \bar{y} + rz s_y$
+- This implies, for example:
+    - The regression line goes through the point $(\bar{x}, \bar{y})$: evaluate when $z=0$
+    - If the value of $x$ is 1.2 standard deviations above the mean, then $\hat{y}$ is $1.2 r$ standard deviations from the mean which is 0.6 standard deviations if $r = 0.5$, for example
+    
+#### Estimating $\sigma$
+
+- The unbiased estimate of $\sigma^2$ is the residual sum of squares divided by the degrees of freedom
+- The conventional estimate of $\sigma$ is the square root of this estimate.
+- The residual sum of squares is
+$$
+\text{RSS} = \sum_{i=1}^n (y_i - \hat{y_i})^2
+$$
+- The degrees of freedom is $n-2$ here
+    - It takes two points to estimate a line which determines all expected values $\E(Y \mid X=x)$
+    - The remaining points provide information to assess variability of the points around this line
+    
+#### lm()
+
+- We fit regression models using `lm()`
+- There are also **tidymodels** functions which use `lm()` to fit regression models, but return estmated parameters in a nicer fashion (as a tibble and not as output printed to the console)
+- Be able to read R output from a fitted regression model
+- Find numerical values of the estimated coefficient
+- Find numerical values or the estimated standard errors of the regression coefficients
+- Find the numerical value for the estimate of $\sigma$
+
+#### Inference
+
+- A confidence interval for the underlying unknown slope $\beta_1$ of the "true" regression line has the formula
+$$
+\hat{\beta}_1 \pm t^* \SE(\hat{\beta}_1)
+$$
+- Make sure to use $t^*$ which is a quantile from a t distribution (close to 2 for a 95% confidence interval) and not $t = \hat{\beta}_1 / \SE(\hat{\beta}_1)$ which is reported as the test statistic for the hypothesis test with $H_0: \beta_1 = 0$
+- The reported p-value for the slope in a summary of a fitted regression model corresponds to this null hypothesis and a two-sided alternative
+    - If we wanted a different null hypothesis, we would need to calculate a different test statistic and p-value
+
+#### Power Laws
+
+- Review estimation of coefficients in a power law
+
+$$
+Y = C X^\theta
+$$
+
+- which may be accomplished by taking logarithms of the data $x$ and $y$ and doing regular simple linear regression where the estimate of the slope $\hat{\theta} = \hat{\beta}_1$ is the estimate of $\theta$
+
+$$
+\log Y = \log C + \theta \log X
+$$
+
+- Note that additive error after taking logs corresponds to multiplicative error on the original scale
+
+#### Residuals
+
+- The *residuals* are the vertical distances between points and their predicted values:
+    - $r_i = y_i - \hat{y}_i$
+- Know what to look for in residual plots to assess the assumptions of linearity and constant variance
+
+#### Prediction
+
+- Understand the difference between a confidence interval for $\E(Y \mid X = x)$, the value of $y$ for the true regression line in the population at some value $x$ and a prediction interval for a new observation $Y^*$ at value $x$.
+- If we define $\hat{sigma}$ to be the estimate of $\sigma$ calculated as
+$$
+\hat{sigma} = \frac{\sum_{i=1}^n (y_i - \hat{y}_i)^2}{n-2}
+$$
+- and write $x = \bar{x} + z \hat{\sigma}_x$ where
+$$
+\hat{\sigma}_x = \sqrt{\frac{n-1}{n}} s_x =
+\sqrt{ \frac{\sum_{i=1}^n (x_i - \bar{x}_i)^2}{n} }
+$$
+- be the "population" standard deviation of the $x$ values, then:
+    - $\SE(\E(Y \mid X =x) = \hat{\sigma} \sqrt{ \frac{1 + z^2}{n}}$
+    - $\SE(Y^* \mid X = x) = \hat{\sigma} \sqrt{ 1 + \frac{1 + z^2}{n} }$
+- Note that as the sample size $n$ increases, $\SE(\E(Y \mid X =x) )$ shrinks to zero, but $\SE(Y^* \mid X = x)$ gets closer to $\sigma$.
+- Regression confidence intervals and prediction intervals are narrower when $x$ is close to $\bar{x}$ than when $x$ is further away.
+

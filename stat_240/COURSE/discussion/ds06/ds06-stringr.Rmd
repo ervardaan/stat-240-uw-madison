@@ -1,0 +1,174 @@
+---
+title: "STAT 240 Discussion 6"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message=FALSE,
+                      warning=FALSE,
+                      include=TRUE)
+library(tidyverse)
+library(stringr)
+source("../../scripts/viridis.R")
+```
+
+## Create Data Frames
+
+The chunk below creates some example data frames with color names and an index column that we will use below.
+
+```{r make-data}
+df_words <- tibble(
+  index = seq_along(stringr::words),
+  words = stringr::words)
+
+df_colors <- tibble(
+  index = seq_along(colors()),
+  colors = colors())
+```
+
+```{r seedata}
+df_words_store=df_words
+```
+### 1
+
+The R command `colors()` returns an array with all of the color names that R knows about, which was how the `df_colors` data frame was created. Find all colors that contain the pattern "orange" or "yellow". *Hint: use `str_detect()`*. 
+
+- Print out a data frame that displays the number of colors (that contain the pattern "orange") and the first and last of these colors alphabetically.
+
+```{r question1}
+df_colors
+df_orange=df_colors %>% filter(str_detect(colors,"orange" ) | str_detect(colors,"yellow" ) ) 
+
+df_first=df_orange %>% head(n=1)
+df_last=df_orange %>%  tail(n=1)
+df_combined=full_join(df_first,df_last,by="colors")  %>%   select(-index.x,-index.y) %>%  arrange(colors)
+df_combined
+```
+
+### 2
+
+How many words in `df_words` begin with each letter? Do not distinguish between lower case and capital letters. 
+
+- Make a bar graph that displays these counts, but order the bars from highest to lowest.  That is, the first bar should be the tallest and the bar furthest to the right should be the lowest. *Hint: consider using `reorder()`.*
+- Be sure to label the axes and add a descriptive title.
+- Repeat for the last letter of each word. 
+
+*Hint: use `mutate()` and `str_sub()` to create new columns with the first and last letter of each word and then make the graphs. Use either `str_to_lower()` or `str_to_upper()` before counting.*
+
+```{r question2}
+df_count2=df_words %>% mutate(first_char=str_to_lower(str_sub(words,1,1)),last_char=str_to_lower(str_sub(words,-1,-1))) 
+df_count=df_count2 %>% group_by(first_char) %>%  group_by(first_char) %>% mutate(count=n()) %>%  ungroup() %>% group_by(last_char) %>%  mutate(count2=n()) 
+df_count2
+df_count
+list_char=letters
+list_char=list_char %>% as_tibble() %>%  mutate(first_char=value) %>% select(-value)
+list_char
+
+dim(list_char)
+list_char_ff=list_char %>% left_join(df_count,by="first_char")
+# %>% mutate(count=case_when(is.na(count)~0,.default=count))#making the count of characters 0 when they are NA
+list_char=list_char %>% as_tibble() %>%  mutate(last_char=first_char) %>% select(-first_char) 
+# %>%  mutate(count=case_when(is.na(count)~0,.default=count))
+list_char_ll=list_char %>% left_join(df_count,by="last_char") 
+list_char_ll
+list_char_f=list_char_ff %>% group_by(first_char) %>%  summarize(count=n()) %>% mutate(count=case_when(count!=1~count,.default=0))
+list_char_f
+
+#ggplot(list_char_f,aes())
+list_char_fd=list_char_f %>% arrange(desc(count)) 
+list_char_fd
+
+list_char_l=list_char_ll %>% group_by(last_char) %>%  summarize(count=n()) %>%  mutate(count=case_when(count!=1~count,.default=0))
+list_char_l
+list_char_ld=list_char_l %>% arrange(desc(count)) 
+list_char_ld
+#list_char_ld<-list_char_ld %>%  mutate(last_char=factor(last_char,levels=c(1:26)))
+#list_char_ld$last_char<-with(list_char_ld,reorder(last_char))
+#with
+list_char_fd$first_char<-reorder(list_char_fd$first_char,c(1:26))
+ggplot(list_char_fd)+geom_col(aes(x=first_char,y=count))
+list_char_ld$last_char=reorder(list_char_ld$last_char,c(1:26))
+  ggplot(list_char_ld) +geom_col(aes(x=last_char,y=count))
+```
+
+
+### 3
+
+Find all words in `df_words` that begin with the most frequent first letter and end with the most frequent last letter. 
+
+- Print out a data frame that displays the number of such words and the first and last color in alphabetical order. 
+
+```{r question3}
+list_char_fcount =list_char_f %>% left_join(list_char_l,by=c("first_char"="last_char"))
+list_char_fcount
+most_frequent_f=list_char_fcount %>% arrange(desc(count.x))  %>%  head(n=1) %>%  select(-count.y)
+most_frequent_f
+most_frequent_l=list_char_fcount %>% arrange(desc(count.y))  %>%  head(n=1) %>%  select(-count.x)
+most_frequent_l
+df_words
+c=most_frequent_f$first_char
+c
+c=str_c("^",c)
+c
+c2=most_frequent_l$first_char
+c2=str_c(c2,"$")
+c2
+df_words =df_words %>% filter(str_detect(words,c) & str_detect(words,c2))
+df_words
+df_words2=df_words %>% summarize(count_t=n()) %>%  select(count_t)
+combined_df
+combined_df_novice=cbind(df_words2,combined_df)
+  combined_df_novice
+df_combined2=df_combined %>%  pivot_wider(names_from=colors,values_from=colors) %>% rename("first_color"="darkorange")
+  colnames(df_combined2)[2]="last_color"
+  #indexing of columns starts with 0
+  
+  
+combined_df=cbind(df_words2,df_combined2 )
+combined_df
+```
+
+
+### 4
+
+Create a string named `color_string` which has all of the colors in `df_colors()` that (i) do not contain digits and (ii) do not begin with the letter "s", separated by the symbol `|` arranged alphabetically.
+(For example, suppose there are three colors that satisfy this:  red, blue, green.  The resulting string would be "blue|green|red".)
+
+How many such colors are there?
+
+Print out the first 30 characters of `color_string`.
+
+*Hint: Consider using `str_detect()` and `[:digit:]` to help `filter()` the appropriate rows, `pull()` to extract a column as a vector, and `str_c()` with argument `collapse` set appropriately.*
+
+```{r question4}
+df_colors
+df_colors2=df_colors %>%   filter(!str_detect(colors,"[0-9]")) %>%  filter(!str_detect(colors, "[s]")  )
+#ask:[^character/range] not working-but simple ^character is working
+df_colors2
+colorsv=df_colors2 %>% pull(colors)
+#colorsv
+#color_string=colorsv
+color_string=colorsv %>%  str_c(collapse='|')
+color_string
+```
+
+
+### 5
+
+Find all words in `df_words` that **exactly** match a color in `color_string` (from the previous question). Print out the list.
+
+How many such words are there?
+
+*Hint: Use `str_match()` inside of `mutate()` to create a column named `match` which saves the pattern where `words` matches `color_string`, drop missing values, and then `filter()` to keep only those cases where there is an exact match between the word and the matching pattern.*
+
+```{r question5}
+#df_words %>% inner_join(color_string)
+df_words_store
+df_colors22=df_colors2 %>%  rename("words"="colors")
+df_colors22
+df_words3=df_words_store %>% mutate(match=str_match(color_string,words)) %>%  drop_na()
+df_words3
+#perfect_match=df_colors22 %>% left_join(df_words3,by=words)
+
+```
